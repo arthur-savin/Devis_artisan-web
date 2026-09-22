@@ -1,0 +1,10 @@
+# Config minimale : Edge Functions vers le projet cloud.
+project_id = "eqqrvnmjnoudncfuwsxt"
+
+[functions.analyze-lead]
+enabled = true
+verify_jwt = false
+
+[functions.qualify-dossier]
+enabled = true
+verify_jwt = false

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Grille tarifaire</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body class="dash">
+  <div class="app">
+    <aside class="side">
+      <div class="side-brand">
+        <div class="bolt" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+        </div>
+        <div>
+          <strong id="brandName">Espace artisan</strong>
+          <span id="brandMetier">Artisan</span>
+        </div>
+      </div>
+      <nav class="nav-side">
+        <a href="index.html">Demandes</a>
+        <a class="is-on" href="tarifs.html">Grille tarifaire</a>
+        <a id="linkPage" href="../page/index.html">Ma page</a>
+        <a id="linkWidget" href="../widget/index.html">Voir le widget</a>
+      </nav>
+      <div class="side-foot">
+        <a href="index.html">← Retour aux demandes</a>
+        <button type="button" id="logout">Se déconnecter</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="top">
+        <h1>Grille tarifaire</h1>
+      </header>
+      <div class="content tarif-wrap">
+        <section class="panel tarif-panel">
+          <p class="tarif-lead">Collez ici vos vrais tarifs (HT, unité, forfaits). L’IA ne donnera une estimation au client <strong>que</strong> si cette grille est renseignée — jamais un prix « du marché ».</p>
+          <label class="lab" for="tarifGrid">Votre grille</label>
+          <textarea id="tarifGrid" rows="16" placeholder="Ex.&#10;Déplacement / 1 h de dépannage : 120 € HT&#10;Point lumineux posé : 90 € HT&#10;Remplacement tableau 13 modules : 850 € HT&#10;Gouttière zinc au ml : 65 € HT"></textarea>
+          <p class="tarif-help">Une ligne par prestation, avec un montant. Plus c’est précis, plus l’estimation pourra s’en rapprocher. Sans grille, le client reçoit une synthèse mais aucun chiffre.</p>
+          <p class="error" id="tarifError" hidden></p>
+          <p class="ok-msg" id="tarifOk" hidden>Grille enregistrée.</p>
+          <button type="button" class="btn btn-gold" id="saveTarif">Enregistrer la grille</button>
+        </section>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/store.js"></script>
+  <script src="tarifs.js"></script>
+</body>
+</html>

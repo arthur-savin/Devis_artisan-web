@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Outil de devis — Widget &amp; dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="shared/theme.css" />
+  <style>
+    body {
+      background:
+        radial-gradient(1000px 380px at 50% -8%, rgba(244, 196, 48, 0.16), transparent 60%),
+        var(--navy);
+      color: #F7F1E4;
+    }
+    .wrap {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 40px 20px 56px;
+    }
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .bolt {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--gold);
+      color: var(--navy);
+      display: grid;
+      place-items: center;
+    }
+    h1 { font-size: 1.8rem; letter-spacing: -0.04em; margin-bottom: 8px; }
+    .intro { color: rgba(247, 241, 228, 0.7); max-width: 54ch; margin-bottom: 28px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+    a.card {
+      display: block;
+      background: var(--paper);
+      color: var(--ink);
+      text-decoration: none;
+      border-radius: 20px;
+      padding: 22px 20px;
+      box-shadow: var(--shadow);
+      transition: transform .2s var(--ease);
+    }
+    a.card:hover { transform: translateY(-2px); }
+    a.card span {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--gold-deep);
+      margin-bottom: 8px;
+    }
+    a.card h2 { font-size: 1.2rem; margin-bottom: 6px; }
+    a.card p { color: var(--muted); font-size: 0.9rem; }
+    .note {
+      margin-top: 22px;
+      font-size: 0.8rem;
+      color: rgba(247, 241, 228, 0.5);
+      max-width: 62ch;
+    }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark">
+      <div class="bolt" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+      </div>
+      <strong>Outil de devis</strong>
+    </div>
+    <h1>Deux portes, un même projet</h1>
+    <p class="intro">Le particulier arrive sur la page artisan et remplit le widget. L’artisan suit les demandes dans son dashboard. Chaque atelier a sa page et son espace.</p>
+    <div class="grid">
+      <a class="card" href="creer/index.html">
+        <span>Nouveau</span>
+        <h2>Créer une page artisan</h2>
+        <p>Nom, métier, ville : une page publique, un formulaire de devis, et un dashboard dédié.</p>
+      </a>
+      <a class="card" href="widget/index.html">
+        <span>Côté client</span>
+        <h2>Widget de devis</h2>
+        <p>Description du besoin, photos guidées une par une, puis transmission à l’artisan.</p>
+      </a>
+      <a class="card" href="dashboard/index.html">
+        <span>Côté artisan</span>
+        <h2>Dashboard</h2>
+        <p>Liste des demandes, détail, appel / e-mail, et suivi de statut (nouveau → devis envoyé).</p>
+      </a>
+    </div>
+    <p class="note">Les demandes vont dans Supabase une fois le projet configuré. Tant que les clés ne sont pas renseignées, elles restent dans le navigateur (démo locale).</p>
+  </div>
+</body>
+</html>

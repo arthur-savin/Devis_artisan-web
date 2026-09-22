@@ -1,0 +1,134 @@
+body {
+  background: var(--navy);
+  color: #F7F1E4;
+}
+
+.hero {
+  background:
+    radial-gradient(900px 420px at 20% -10%, rgba(244, 196, 48, 0.2), transparent 55%),
+    var(--navy);
+  padding: 48px 20px 40px;
+}
+
+.hero-inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 10px;
+}
+
+h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.05em;
+  margin-bottom: 8px;
+}
+
+.tag {
+  color: rgba(247, 241, 228, 0.72);
+  font-size: 1.05rem;
+  margin-bottom: 14px;
+}
+
+.bio {
+  max-width: 48ch;
+  color: rgba(247, 241, 228, 0.82);
+  margin-bottom: 22px;
+}
+
+.bio:empty { display: none; }
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn {
+  appearance: none;
+  text-decoration: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 700;
+  background: var(--gold);
+  color: var(--navy);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--gold);
+  border: 1.5px solid rgba(244, 196, 48, 0.45);
+}
+
+.body {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 28px 28px 0 0;
+  padding: 32px 20px 48px;
+  min-height: 40vh;
+}
+
+.steps {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.steps h2 {
+  font-size: 1.2rem;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+
+.steps ol {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.steps li {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.steps strong { display: block; margin-bottom: 4px; }
+.steps span { color: var(--muted); font-size: 0.92rem; }
+
+.foot {
+  padding: 18px 20px 28px;
+  text-align: center;
+  color: rgba(247, 241, 228, 0.55);
+  font-size: 0.82rem;
+}
+
+.foot a { color: var(--gold); }
+
+.missing {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.missing[hidden],
+#page[hidden] {
+  display: none !important;
+}
+
+.missing-card {
+  max-width: 420px;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 20px;
+  padding: 28px 24px;
+}
+
+.missing-card p { color: var(--muted); margin: 8px 0 16px; }
+.missing-card a { color: var(--gold-deep); font-weight: 700; }

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Demande de devis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="widget.css" />
+</head>
+<body class="widget">
+  <main class="page">
+    <section class="shell" aria-label="Formulaire de demande de devis">
+      <header class="brand">
+        <div class="brand-mark">
+          <div class="bolt" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+          </div>
+          <div>
+            <h1>Demande de devis</h1>
+            <p id="brandSub">Décrivez votre besoin · 5 captures guidées</p>
+          </div>
+        </div>
+        <span class="trust">Gratuit · 24 h</span>
+      </header>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-meta">
+          <span>Étape <strong id="stepLabel">1</strong> sur 4</span>
+          <span id="stepName">Votre besoin</span>
+        </div>
+        <div class="track" aria-hidden="true"><span id="bar"></span></div>
+        <ol class="steps-dots">
+          <li class="is-current" data-dot="1">Besoin</li>
+          <li data-dot="2">Captures</li>
+          <li data-dot="3">Contact</li>
+          <li data-dot="4">Envoi</li>
+        </ol>
+      </div>
+
+      <div class="viewport">
+        <form id="devisForm" novalidate>
+          <section class="step is-active" data-step="1" aria-labelledby="t1">
+            <h2 id="t1">De quoi avez-vous besoin ?</h2>
+            <p class="lead">Décrivez la situation avec vos mots. Vous pouvez dicter ou taper. Ensuite nous vous demanderons 5 photos ou courtes vidéos, une par une, comme un constat sur place. Les vidéos se filment ici, en 720p, environ 30 secondes (5 maximum).</p>
+            <div class="field" id="f-besoin">
+              <label for="besoin">Votre besoin <span class="req">*</span></label>
+              <textarea id="besoin" name="besoin" rows="7" placeholder="Ex. Une fuite apparaît au plafond sous la toiture depuis la dernière pluie, côté jardin, près de la gouttière…"></textarea>
+              <p class="hint">Ajoutez quelques mots pour que nous puissions vous guider.</p>
+            </div>
+            <button type="button" class="btn-dictate" id="btnDictate">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3"/></svg>
+              <span id="dictateLabel">Dicter ma description</span>
+            </button>
+            <p class="error-banner" id="err1">Quelques mots suffisent pour commencer.</p>
+            <div class="nav">
+              <button type="button" class="btn btn-next" data-next>Continuer</button>
+            </div>
+          </section>
+
+          <section class="step" data-step="2" hidden aria-hidden="true" aria-labelledby="t2">
+            <div class="wait-panel" id="planWait">
+              <span class="landing-spin" aria-hidden="true"></span>
+              <h2 id="t2">Nous préparons les 5 captures utiles</h2>
+              <p class="lead" id="planWaitText">Lecture de votre description pour coller au plus près du constat réel.</p>
+            </div>
+          </section>
+
+          <section class="step" data-step="3" hidden aria-hidden="true" aria-labelledby="t3">
+            <p class="shot-kicker" id="shotKicker">Capture 1 sur 5</p>
+            <h2 id="t3">Photo à prendre</h2>
+            <p class="lead" id="shotHint">Une seule capture à la fois. Lumière du jour, sans flash si possible.</p>
+            <div class="shot-stage" id="shotStage">
+              <video id="shotLive" playsinline muted hidden></video>
+              <video id="shotPreviewVideo" playsinline muted controls hidden></video>
+              <img id="shotPreview" alt="Aperçu" hidden />
+              <div class="shot-placeholder" id="shotPlaceholder">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L9 18"/></svg>
+                <p id="shotPlaceholderText">Prenez ou choisissez une photo</p>
+              </div>
+              <span class="recorder-timer" id="shotTimer" hidden>00:00 / 00:30</span>
+              <span class="shot-badge" id="shotBadge" hidden>720p · 30 s</span>
+            </div>
+            <div class="shot-actions" id="shotPickers">
+              <button type="button" class="btn btn-navy" id="btnCapture">Prendre la photo</button>
+              <button type="button" class="btn btn-back" id="btnPick">Choisir dans l’appareil</button>
+              <button type="button" class="btn btn-back" id="btnStopRec" hidden>Arrêter</button>
+              <button type="button" class="btn btn-back btn-offer-video" id="btnOfferVideo">Filmer une vidéo à la place</button>
+            </div>
+            <p class="shot-video-note" id="shotVideoNote" hidden>Filmée ici dans le formulaire, 720p, environ 30 secondes — pas d’import depuis l’appareil (ça évite les fichiers 4K trop lourds).</p>
+            <input type="file" id="photoCapture" accept="image/*" capture="environment" hidden />
+            <input type="file" id="photoPick" accept="image/*" hidden />
+            <p class="shot-feedback" id="shotFeedback" hidden></p>
+            <div class="shot-done" id="shotDone" hidden></div>
+            <div class="nav" id="shotNav">
+              <button type="button" class="btn btn-next" id="btnSendPhoto" hidden>Envoyer cette photo</button>
+            </div>
+          </section>
+
+          <section class="step" data-step="4" hidden aria-hidden="true" aria-labelledby="t4">
+            <div class="wait-panel" id="reviewWait">
+              <span class="landing-spin" aria-hidden="true"></span>
+              <h2 id="t4">Nous relisons l’ensemble</h2>
+              <p class="lead" id="reviewWaitText">Description et captures ensemble, pour vérifier que l’artisan pourra chiffrer sans se déplacer.</p>
+            </div>
+          </section>
+
+          <section class="step" data-step="5" hidden aria-hidden="true" aria-labelledby="t5">
+            <h2 id="t5">Vos coordonnées</h2>
+            <p class="lead">Le dossier (description, photos et vidéos) sera transmis à l’artisan, qui reste seul décisionnaire du devis.</p>
+            <div class="field" id="f-prenom">
+              <label for="prenom">Prénom <span class="req">*</span></label>
+              <input id="prenom" name="prenom" type="text" autocomplete="given-name" placeholder="Camille" />
+              <p class="hint">Le prénom est obligatoire.</p>
+            </div>
+            <div class="field" id="f-tel">
+              <label for="tel">Téléphone <span class="req">*</span></label>
+              <input id="tel" name="tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="06 12 34 56 78" />
+              <p class="hint">Indiquez un numéro à 10 chiffres.</p>
+            </div>
+            <div class="field" id="f-email">
+              <label for="email">E-mail <span class="req">*</span></label>
+              <input id="email" name="email" type="email" autocomplete="email" placeholder="vous@email.fr" />
+              <p class="hint">L’e-mail semble incomplet.</p>
+            </div>
+            <div class="field-row">
+              <div class="field field-grow" id="f-adresse">
+                <label for="adresse">Adresse <span class="req">*</span></label>
+                <input id="adresse" name="adresse" type="text" autocomplete="street-address" placeholder="14 rue de la Part-Dieu" />
+                <p class="hint">Indiquez le numéro et la rue.</p>
+              </div>
+              <div class="field field-cp" id="f-cp">
+                <label for="cp">Code postal <span class="req">*</span></label>
+                <input id="cp" name="cp" type="text" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="69003" />
+                <p class="hint">5 chiffres, pour vérifier la zone d’intervention.</p>
+              </div>
+            </div>
+            <div class="nav">
+              <button type="button" class="btn btn-next" id="submitBtn" data-next>Transmettre le dossier</button>
+            </div>
+            <p class="error-banner" id="errSend">L’envoi a échoué. Réessayez dans un instant.</p>
+          </section>
+
+          <section class="step" data-step="6" hidden aria-hidden="true" aria-labelledby="t6">
+            <div class="landing" id="landing">
+              <div class="landing-head">
+                <div class="confirm-badge" id="landingBadge" aria-hidden="true">
+                  <svg class="landing-check" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg>
+                  <span class="landing-spin" hidden></span>
+                </div>
+                <h2 id="t6">Transmission en cours</h2>
+                <p class="lead" id="confirmLead">Votre dossier part vers l’artisan.</p>
+              </div>
+
+              <div class="landing-wait" id="landingWait">
+                <p class="landing-wait-title">Préparation de votre prédevis</p>
+                <p class="landing-wait-text" id="landingWaitText">Nous listons les travaux à réaliser, d’après votre description et vos photos.</p>
+              </div>
+
+              <div class="landing-error" id="landingError" hidden>
+                <p id="landingErrorText">L’envoi n’a pas abouti. Réessayez dans un instant.</p>
+                <button type="button" class="btn btn-navy" id="landingRetry">Réessayer l’envoi</button>
+              </div>
+
+              <div class="landing-result" id="landingResult" hidden>
+                <p class="landing-kicker" id="landingKicker">Dossier transmis à l’artisan</p>
+
+                <div class="landing-card">
+                  <h3>Ce qui a été transmis</h3>
+                  <p class="obs-client" id="clientSummary"></p>
+                </div>
+                <dl class="summary landing-summary" id="summary"></dl>
+                <div class="landing-photos" id="landingPhotos"></div>
+
+                <article class="predevis" id="predevis" aria-labelledby="predevisTitle">
+                  <header class="predevis-head">
+                    <p class="predevis-badge">Prédevis non contractuel</p>
+                    <h3 id="predevisTitle">Votre intervention</h3>
+                    <p class="predevis-intro" id="predevisIntro"></p>
+                  </header>
+                  <ol class="predevis-lines" id="predevisLines"></ol>
+                  <footer class="predevis-foot">
+                    <p class="predevis-total" id="predevisTotal" hidden></p>
+                    <p class="predevis-legal" id="landingDisclaimer">Ce prédevis n’est pas un devis. L’artisan reste seul décisionnaire.</p>
+                  </footer>
+                </article>
+              </div>
+
+              <div class="nav">
+                <button type="button" class="btn btn-next" id="restart">Nouvelle demande</button>
+              </div>
+            </div>
+          </section>
+        </form>
+      </div>
+    </section>
+    <p class="foot">La demande arrive dans l’<a href="../dashboard/index.html">espace artisan</a>.</p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/store.js"></script>
+  <script src="widget.js"></script>
+</body>
+</html>

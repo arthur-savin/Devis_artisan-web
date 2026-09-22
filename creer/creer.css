@@ -1,0 +1,150 @@
+body {
+  background:
+    radial-gradient(1000px 380px at 50% -8%, rgba(244, 196, 48, 0.16), transparent 60%),
+    var(--navy);
+  color: #F7F1E4;
+}
+
+.wrap {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 32px 20px 56px;
+}
+
+.back {
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.back:hover { text-decoration: underline; }
+
+.intro { margin: 22px 0 20px; }
+
+.bolt {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--gold);
+  color: var(--navy);
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+}
+
+h1 {
+  font-size: 1.7rem;
+  letter-spacing: -0.04em;
+  margin-bottom: 8px;
+}
+
+.intro p {
+  color: rgba(247, 241, 228, 0.72);
+  max-width: 42ch;
+}
+
+.card {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 20px;
+  padding: 24px 22px 22px;
+  box-shadow: var(--shadow);
+}
+
+label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+.req { color: var(--gold-deep); }
+
+input, textarea {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 1rem;
+}
+
+textarea { resize: vertical; min-height: 72px; }
+
+.btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  background: var(--gold);
+  color: var(--navy);
+  width: 100%;
+  margin-top: 18px;
+  text-decoration: none;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1.5px solid var(--line);
+  color: var(--navy);
+}
+
+.btn:disabled { opacity: 0.6; cursor: wait; }
+
+.hint {
+  margin-top: 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.hint a { color: var(--gold-deep); font-weight: 700; }
+
+.error {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  margin-bottom: 8px;
+}
+
+.success h2 {
+  font-size: 1.3rem;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+
+.success p { color: var(--muted); }
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.copy {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--gold-deep);
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 12px;
+  padding: 0;
+  font-size: 0.85rem;
+}

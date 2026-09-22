@@ -1,0 +1,32 @@
+:root {
+  --navy: #0D1B2E;
+  --navy-soft: #1A3350;
+  --gold: #F4C430;
+  --gold-deep: #C9A227;
+  --paper: #F3EEE4;
+  --card: #FFFcf7;
+  --ink: #0D1B2E;
+  --muted: #5B6A7A;
+  --line: #E2D9C8;
+  --danger: #B42318;
+  --danger-bg: #FDECEC;
+  --ok: #1F6B4A;
+  --ok-bg: #E8F3ED;
+  --radius: 18px;
+  --shadow: 0 18px 50px rgba(13, 27, 46, 0.14);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font: "Space Grotesk", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { min-height: 100%; }
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.45;
+}
+
+button, input, select, textarea { font-family: inherit; }

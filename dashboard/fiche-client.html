@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Fiche lead</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #0D1B2E;
+      --navy-soft: #1A3350;
+      --gold: #F4C430;
+      --gold-deep: #C9A227;
+      --paper: #F3EEE4;
+      --card: #FFFcf7;
+      --ink: #0D1B2E;
+      --muted: #5B6A7A;
+      --line: #E2D9C8;
+      --danger: #B42318;
+      --danger-bg: #FDECEC;
+      --ok: #1F6B4A;
+      --ok-bg: #E8F3ED;
+      --warn: #8A5A00;
+      --warn-bg: #FFF3C4;
+      --radius: 18px;
+      --shadow: 0 18px 50px rgba(13, 27, 46, 0.14);
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --font-title: "Space Grotesk", system-ui, sans-serif;
+      --font-body: "IBM Plex Sans", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      font-family: var(--font-body);
+      color: var(--ink);
+      background: #E8E2D4;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.45;
+    }
+
+    button, input, select, textarea { font-family: inherit; }
+
+    h1, h2, h3, .topbar-id, .price-range {
+      font-family: var(--font-title);
+      letter-spacing: -0.03em;
+    }
+
+    .mono { font-family: var(--font-mono); }
+
+    a { color: var(--navy); }
+
+    /* ——— Sticky header ——— */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--navy);
+      color: #F7F1E4;
+      padding: 12px 22px;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 14px 18px;
+      box-shadow: 0 8px 28px rgba(13, 27, 46, 0.28);
+    }
+
+    .btn-back {
+      color: var(--gold);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+
+    .btn-back:hover { text-decoration: underline; }
+
+    .topbar[hidden], .page[hidden] { display: none !important; }
+    .card-ai .empty-block { color: rgba(247, 241, 228, 0.7); }
+    .topbar-id { min-width: 0; }
+    .topbar-id strong { display: block; font-size: 1.05rem; }
+    .topbar-id span { font-size: 0.78rem; color: rgba(247, 241, 228, 0.62); }
+
+    .topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .submitted {
+      font-size: 0.78rem;
+      color: rgba(247, 241, 228, 0.7);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .status-wrap { position: relative; }
+
+    .status-btn {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-btn::after {
+      content: "";
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid currentColor;
+      opacity: 0.7;
+    }
+
+    .status-btn[data-status="nouveau"] { background: var(--warn-bg); color: var(--warn); }
+    .status-btn[data-status="contacte"] { background: var(--gold); color: var(--navy); }
+    .status-btn[data-status="devis_envoye"] { background: var(--ok-bg); color: var(--ok); }
+    .status-btn[data-status="gagne"] { background: var(--ok-bg); color: var(--ok); }
+    .status-btn[data-status="perdu"] { background: #3a4450; color: #c5cdd6; }
+    .status-btn[data-status="archive"] { background: #3a4450; color: #c5cdd6; }
+
+    .status-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: var(--card);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 8px;
+      display: none;
+      min-width: 168px;
+      box-shadow: var(--shadow);
+      z-index: 40;
+    }
+
+    .status-menu.is-open { display: flex; flex-direction: column; gap: 4px; }
+
+    .status-menu button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .status-menu button:hover,
+    .status-menu button.is-on { background: #fff6d6; }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .btn-gold { background: var(--gold); color: var(--navy); }
+    .btn-gold:hover { filter: brightness(1.05); }
+    .btn-ghost {
+      background: transparent;
+      border: 1.5px solid rgba(244, 196, 48, 0.45);
+      color: var(--gold);
+    }
+    .btn-navy { background: var(--navy); color: var(--gold); }
+    .btn-paper {
+      background: var(--paper);
+      border: 1.5px solid var(--line);
+      color: var(--navy);
+    }
+    .btn-danger {
+      background: transparent;
+      border: 1.5px solid rgba(247, 201, 196, 0.45);
+      color: #F7C9C4;
+    }
+    .btn-danger:hover {
+      background: rgba(180, 35, 24, 0.22);
+      border-color: #F7C9C4;
+    }
+
+    /* ——— Page ——— */
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 22px 20px 64px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 22px 22px 20px;
+    }
+
+    .card h2 {
+      font-size: 1.05rem;
+      margin-bottom: 4px;
+    }
+
+    .card-lead {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 16px;
+    }
+
+    .kicker {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--gold-deep);
+      margin-bottom: 6px;
+    }
+
+    /* Client */
+    .client-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 28px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .field-value {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .field-value a { font-weight: 600; text-underline-offset: 3px; }
+    .field-value a:hover { color: var(--gold-deep); }
+
+    .elapsed { font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+
+    /* Photos */
+    .photos {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .thumb {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      padding: 0;
+      background: var(--navy);
+      text-align: left;
+      position: relative;
+      aspect-ratio: 1;
+    }
+
+    .thumb:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+    .thumb img, .thumb video, .lb-frame img, .lb-frame video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .lb-frame video { object-fit: contain; background: #000; }
+
+    .thumb-play {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(13, 27, 46, 0.28);
+      pointer-events: none;
+    }
+
+    .thumb-play span {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--gold);
+      color: var(--navy);
+      display: grid;
+      place-items: center;
+      font-size: 0.9rem;
+      font-weight: 800;
+      padding-left: 3px;
+    }
+
+    .empty-block {
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 8px 0;
+    }
+
+    .ph {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      color: rgba(247, 241, 228, 0.85);
+    }
+
+    .ph-navy { background: linear-gradient(145deg, #0D1B2E, #1A3350 55%, #C9A227); }
+    .ph-clay { background: linear-gradient(145deg, #6B3A2A, #C4845A 60%, #E8D5B5); }
+    .ph-sage { background: linear-gradient(145deg, #1F4A3A, #5B8A72 55%, #D5E4C8); }
+    .ph-slate { background: linear-gradient(145deg, #2C3E50, #5B6A7A 50%, #B8C4CE); }
+
+    .ph svg { opacity: 0.85; }
+
+    .thumb-badge {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      background: rgba(13, 27, 46, 0.82);
+      color: #F7F1E4;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 4px 7px;
+      border-radius: 6px;
+    }
+
+    .photos-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .photos-head .card-lead { margin-bottom: 0; }
+
+    .photos-head .btn { flex-shrink: 0; }
+
+    .photo-ask-banner {
+      margin-top: 12px;
+      background: var(--warn-bg);
+      color: var(--warn);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .photo-ask-banner[hidden] { display: none !important; }
+
+    /* Form answers */
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 28px;
+    }
+
+    .kv .span-2 { grid-column: 1 / -1; }
+
+    .note {
+      background: var(--paper);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.9rem;
+    }
+
+    /* IA */
+    .card-ai {
+      background: var(--navy);
+      color: #F7F1E4;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 1px rgba(244, 196, 48, 0.35), var(--shadow);
+    }
+
+    .card-ai .kicker { color: var(--gold); }
+    .card-ai .card-lead { color: rgba(247, 241, 228, 0.62); }
+
+    .price-range {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      color: var(--gold);
+      line-height: 1.1;
+      margin: 8px 0 14px;
+    }
+
+    .price-range small {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: rgba(247, 241, 228, 0.55);
+      letter-spacing: 0;
+      margin-top: 6px;
+      font-family: var(--font-body);
+    }
+
+    .ai-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .chip-complex { background: #FDECEC; color: #B42318; }
+    .chip-mid { background: var(--warn-bg); color: var(--warn); }
+    .chip-simple { background: var(--ok-bg); color: var(--ok); }
+
+    .conf {
+      background: rgba(244, 196, 48, 0.12);
+      border: 1px solid rgba(244, 196, 48, 0.35);
+      border-radius: 12px;
+      padding: 10px 12px;
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .conf strong { color: var(--gold); font-size: 0.88rem; }
+    .conf p { font-size: 0.8rem; color: rgba(247, 241, 228, 0.72); margin-top: 2px; }
+
+    .dots { display: flex; gap: 4px; margin-top: 8px; }
+    .dots i {
+      display: block;
+      width: 28px;
+      height: 4px;
+      border-radius: 99px;
+      background: rgba(247, 241, 228, 0.18);
+    }
+    .dots i.on { background: var(--gold); }
+
+    .ai-cols {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+
+    .prestations { list-style: none; display: grid; gap: 8px; }
+
+    .prestations li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.88rem;
+      border-bottom: 1px solid rgba(244, 196, 48, 0.16);
+      padding-bottom: 8px;
+    }
+
+    .prestations .amt {
+      font-family: var(--font-mono);
+      color: var(--gold);
+      white-space: nowrap;
+      font-size: 0.8rem;
+    }
+
+    .prestations strong { display: block; font-weight: 700; }
+    .prestations small {
+      color: rgba(247, 241, 228, 0.62);
+      font-size: 0.78rem;
+      font-weight: 400;
+      line-height: 1.35;
+    }
+
+    .obs { font-size: 0.9rem; color: rgba(247, 241, 228, 0.82); margin-bottom: 12px; }
+
+    .alert, .reco {
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.84rem;
+      margin-bottom: 8px;
+    }
+
+    .alert { background: rgba(180, 35, 24, 0.22); border: 1px solid rgba(253, 236, 236, 0.25); }
+    .reco { background: rgba(31, 107, 74, 0.28); border: 1px solid rgba(232, 243, 237, 0.2); }
+
+    /* Actions artisan */
+    .actions-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 18px;
+    }
+
+    label.lab {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    textarea, input[type="number"], input[type="date"], input[type="text"] {
+      width: 100%;
+      border: 1.5px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+      color: var(--ink);
+    }
+
+    textarea { min-height: 120px; resize: vertical; }
+
+    .prio {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .prio button {
+      appearance: none;
+      border: 1.5px solid var(--line);
+      background: var(--paper);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .prio button.is-on {
+      background: var(--navy);
+      color: var(--gold);
+      border-color: var(--navy);
+    }
+
+    .save-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+    .prix-reel {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--line);
+    }
+
+    .prix-reel[hidden] { display: none !important; }
+
+    .prix-row {
+      display: flex;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .prix-row .grow { flex: 1; }
+
+    .suffix {
+      position: relative;
+    }
+
+    .suffix input { padding-right: 36px; }
+    .suffix em {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-style: normal;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    /* Timeline */
+    .timeline { list-style: none; position: relative; padding-left: 18px; }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--line);
+    }
+
+    .timeline li {
+      position: relative;
+      padding: 0 0 16px 16px;
+    }
+
+    .timeline li::before {
+      content: "";
+      position: absolute;
+      left: -16px;
+      top: 6px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 0 3px #fff6d6;
+    }
+
+    .timeline strong { display: block; font-size: 0.9rem; }
+    .timeline time {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .add-event {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .add-event input { flex: 1; }
+
+    /* Lightbox */
+    .lb {
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 27, 46, 0.92);
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .lb.is-open { display: flex; }
+
+    .lb-stage {
+      width: min(720px, 100%);
+      position: relative;
+    }
+
+    .lb-frame {
+      aspect-ratio: 4 / 3;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(244, 196, 48, 0.3);
+    }
+
+    .lb-cap {
+      color: #F7F1E4;
+      margin-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.9rem;
+    }
+
+    .lb-cap span { font-family: var(--font-mono); font-size: 0.78rem; color: var(--gold); }
+
+    .lb-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 0;
+      background: var(--gold);
+      color: var(--navy);
+      font-size: 1.2rem;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .lb-prev { left: -16px; }
+    .lb-next { right: -16px; }
+
+    .lb-close {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 0;
+      background: #fff;
+      color: var(--navy);
+      cursor: pointer;
+      font-weight: 700;
+      z-index: 2;
+    }
+
+    /* Modal — demande de photos */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 27, 46, 0.72);
+      z-index: 75;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal.is-open { display: flex; }
+
+    .modal-card {
+      width: min(560px, 100%);
+      max-height: min(88dvh, 720px);
+      overflow: auto;
+      background: var(--card);
+      border-radius: 20px;
+      padding: 22px 22px 18px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+
+    .modal-card h2 { font-size: 1.2rem; margin-bottom: 6px; }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--paper);
+      color: var(--navy);
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .pick-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 14px 0 12px;
+    }
+
+    .pick {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      border: 1.5px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px 11px;
+      cursor: pointer;
+    }
+
+    .pick:has(input:checked) {
+      border-color: var(--navy);
+      background: #fff6d6;
+    }
+
+    .pick input { margin-top: 3px; accent-color: var(--navy); }
+
+    .pick strong { display: block; font-size: 0.84rem; }
+    .pick em {
+      display: block;
+      font-style: normal;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: var(--navy);
+      color: var(--gold);
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 90;
+      box-shadow: var(--shadow);
+      transition: opacity .25s var(--ease), transform .25s var(--ease);
+      max-width: calc(100% - 32px);
+      text-align: center;
+    }
+
+    .toast.is-on {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        grid-template-columns: 1fr auto;
+        padding: 12px 14px;
+      }
+      .topbar-id { grid-column: 1 / -1; }
+      .topbar-actions { grid-column: 1 / -1; }
+      .topbar-actions .btn { flex: 1; }
+      .client-grid, .kv, .ai-cols, .actions-grid, .photos {
+        grid-template-columns: 1fr;
+      }
+      .photos { grid-template-columns: 1fr 1fr; }
+      .photos-head { flex-direction: column; }
+      .photos-head .btn { width: 100%; }
+      .pick-grid { grid-template-columns: 1fr; }
+      .lb-prev { left: 4px; }
+      .lb-next { right: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page" id="loadingPage">
+    <section class="card">
+      <p class="kicker">Fiche client</p>
+      <h2>Chargement de la demande…</h2>
+      <p class="card-lead">Lecture des données liées à cet identifiant.</p>
+    </section>
+  </div>
+
+  <div class="page" id="missingPage" hidden>
+    <section class="card">
+      <p class="kicker">Fiche client</p>
+      <h2>Demande introuvable</h2>
+      <p class="card-lead">Cette fiche n’existe pas, a été retirée de la liste, ou vous n’y avez plus accès. Revenez aux demandes reçues.</p>
+      <p><a class="btn btn-navy" href="index.html">← Tous les leads</a></p>
+    </section>
+  </div>
+
+  <header class="topbar" hidden>
+    <a class="btn-back" href="index.html" id="btnBack">← Tous les leads</a>
+    <div class="topbar-id">
+      <strong id="topName">—</strong>
+      <span id="topSub">—</span>
+    </div>
+    <div class="topbar-meta">
+      <div class="status-wrap">
+        <button type="button" class="status-btn" id="statusBtn" data-status="nouveau" aria-haspopup="listbox" aria-expanded="false">Nouveau</button>
+        <div class="status-menu" id="statusMenu" role="listbox">
+          <button type="button" data-set-status="nouveau" class="is-on">Nouveau</button>
+          <button type="button" data-set-status="contacte">Contacté</button>
+          <button type="button" data-set-status="devis_envoye">Devis envoyé</button>
+          <button type="button" data-set-status="gagne">Gagné</button>
+          <button type="button" data-set-status="perdu">Perdu</button>
+          <button type="button" data-set-status="archive">Archivé</button>
+        </div>
+      </div>
+      <p class="submitted" id="submittedLabel">—</p>
+    </div>
+    <div class="topbar-actions">
+          <button type="button" class="btn btn-gold" id="btnCall">Rappeler le client</button>
+          <button type="button" class="btn btn-ghost" id="btnTreated">Marquer comme traité</button>
+          <button type="button" class="btn btn-danger" id="btnHide">Supprimer de la liste</button>
+    </div>
+  </header>
+
+  <main class="page" hidden>
+    <section class="card" aria-labelledby="b1">
+      <p class="kicker">Bloc 1</p>
+      <h2 id="b1">Informations client</h2>
+      <p class="card-lead">Coordonnées du particulier — lecture seule, liens d’appel et d’e-mail uniquement.</p>
+      <div class="client-grid">
+        <div>
+          <span class="field-label">Prénom, nom</span>
+          <p class="field-value" id="clientName">—</p>
+        </div>
+        <div>
+          <span class="field-label">Téléphone</span>
+          <p class="field-value"><a id="clientTel" href="#">—</a></p>
+        </div>
+        <div>
+          <span class="field-label">E-mail</span>
+          <p class="field-value"><a id="clientEmail" href="#">—</a></p>
+        </div>
+        <div>
+          <span class="field-label">Adresse / code postal</span>
+          <p class="field-value" id="clientAddress">—</p>
+        </div>
+        <div>
+          <span class="field-label">Canal d’entrée</span>
+          <p class="field-value" id="clientSource">—</p>
+        </div>
+        <div>
+          <span class="field-label">Soumission</span>
+          <p class="field-value" id="clientWhen">—</p>
+          <p class="elapsed" id="clientElapsed"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="b2">
+      <div class="photos-head">
+        <div>
+          <p class="kicker">Bloc 2</p>
+          <h2 id="b2">Photos et vidéos du chantier</h2>
+          <p class="card-lead" id="photosLead">Médias joints à la demande.</p>
+        </div>
+        <button type="button" class="btn btn-navy" id="btnAskPhotos">Demander des nouvelles photos</button>
+      </div>
+      <div class="photos" id="photos"></div>
+      <p class="empty-block" id="photosEmpty" hidden>Aucune photo ni vidéo pour cette demande.</p>
+      <p class="photo-ask-banner" id="photoAskBanner" hidden></p>
+    </section>
+
+    <section class="card" aria-labelledby="b3">
+      <p class="kicker">Bloc 3</p>
+      <h2 id="b3">Réponses au formulaire</h2>
+      <p class="card-lead">Saisie du client depuis le widget de demande de devis électricité.</p>
+      <dl class="kv">
+        <div>
+          <dt class="field-label">Type de travaux</dt>
+          <dd class="field-value" id="formTravaux">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Surface concernée</dt>
+          <dd class="field-value" id="formSurface">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Ancienneté de l’installation</dt>
+          <dd class="field-value" id="formAnciennete">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Niveau d’urgence</dt>
+          <dd class="field-value" id="formUrgence">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Présence tableau existant</dt>
+          <dd class="field-value" id="formTableau">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Accès au logement</dt>
+          <dd class="field-value" id="formAcces">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Mise à la terre</dt>
+          <dd class="field-value" id="formTerre">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Circuits estimés</dt>
+          <dd class="field-value" id="formCircuits">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Pièces concernées</dt>
+          <dd class="field-value" id="formPieces">—</dd>
+        </div>
+        <div>
+          <dt class="field-label">Projet associé</dt>
+          <dd class="field-value" id="formProjet">—</dd>
+        </div>
+        <div class="span-2">
+          <dt class="field-label">Précisions du client</dt>
+          <dd class="note" id="formDetails">—</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="card card-ai" aria-labelledby="b4">
+      <p class="kicker">Bloc 4 · Qualification IA</p>
+      <h2 id="b4">Synthèse pour l’artisan</h2>
+      <p class="card-lead">Résumé du besoin, ce qui se voit sur les photos, points de vigilance. Un montant n’apparaît que si vous avez renseigné votre grille tarifaire — il reste indicatif et non contractuel.</p>
+      <p class="empty-block" id="aiEmpty" hidden>Pas encore de synthèse IA pour cette demande. Elle se lance à la réception du dossier : actualisez dans quelques secondes, ou relancez.</p>
+      <div id="aiContent">
+        <p class="price-range" id="aiPrice">—</p>
+        <div class="ai-meta">
+          <span class="chip chip-complex" id="aiComplexity">Complexité</span>
+          <div class="conf">
+            <strong id="aiConfTitle">Score de confiance</strong>
+            <p id="aiConfNote">—</p>
+            <div class="dots" id="aiDots" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="ai-cols">
+          <div>
+            <p class="field-label" style="color: rgba(247,241,228,.55);">Travaux à réaliser</p>
+            <ul class="prestations" id="aiPrestations"></ul>
+          </div>
+          <div>
+            <p class="field-label" style="color: rgba(247,241,228,.55);">Observations</p>
+            <p class="obs" id="aiObs">—</p>
+            <div id="aiFlags"></div>
+          </div>
+        </div>
+      </div>
+      <div class="save-row" style="margin-top:14px">
+        <button type="button" class="btn btn-paper" id="aiRetry">Relancer l’analyse</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="b5">
+      <p class="kicker">Bloc 5</p>
+      <h2 id="b5">Actions artisan</h2>
+      <p class="card-lead">Notes et suivi internes — rien n’est envoyé au client.</p>
+      <div class="actions-grid">
+        <div>
+          <label class="lab" for="notes">Notes internes</label>
+          <textarea id="notes"></textarea>
+          <div class="save-row">
+            <button type="button" class="btn btn-navy" id="saveNotes">Sauvegarder</button>
+          </div>
+        </div>
+        <div>
+          <p class="lab">Priorité</p>
+          <div class="prio" id="prio">
+            <button type="button" data-prio="faible">Faible</button>
+            <button type="button" data-prio="normale">Normale</button>
+            <button type="button" data-prio="haute" class="is-on">Haute</button>
+          </div>
+          <label class="lab" for="rappel">Date de rappel planifiée</label>
+          <input type="date" id="rappel" />
+        </div>
+      </div>
+      <div class="prix-reel" id="prixReel" hidden>
+        <p class="lab">Prix réel facturé</p>
+        <p class="card-lead">Visible uniquement une fois le lead marqué « Gagné » — pour calibrer plus tard l’IA.</p>
+        <div class="prix-row">
+          <div class="grow suffix">
+            <input id="prixReelInput" type="number" min="0" step="10" placeholder="ex. 4100" />
+            <em>€</em>
+          </div>
+          <button type="button" class="btn btn-gold" id="savePrix">Enregistrer le retour</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="b6">
+      <p class="kicker">Bloc 6</p>
+      <h2 id="b6">Historique / activité</h2>
+      <p class="card-lead">Journal du dossier — les ajouts manuels sont enregistrés avec la demande.</p>
+      <ol class="timeline" id="timeline"></ol>
+      <div class="add-event">
+        <input id="eventText" type="text" placeholder="Ex. Client rappelé, RDV fixé au 12 sept." />
+        <button type="button" class="btn btn-paper" id="addEvent">Ajouter</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="lb" id="lightbox" role="dialog" aria-modal="true" aria-label="Visionneuse médias" hidden>
+    <div class="lb-stage" id="lbStage">
+      <button type="button" class="lb-close" id="lbClose" aria-label="Fermer">×</button>
+      <button type="button" class="lb-nav lb-prev" id="lbPrev" aria-label="Photo précédente">‹</button>
+      <div class="lb-frame" id="lbFrame"></div>
+      <button type="button" class="lb-nav lb-next" id="lbNext" aria-label="Photo suivante">›</button>
+      <div class="lb-cap">
+        <p id="lbTitle"></p>
+        <span id="lbMeta"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="photoAskModal" role="dialog" aria-modal="true" aria-labelledby="photoAskTitle" hidden>
+    <div class="modal-card" id="photoAskCard">
+      <button type="button" class="modal-close" id="photoAskClose" aria-label="Fermer">×</button>
+      <p class="kicker">Demande au client</p>
+      <h2 id="photoAskTitle">Quelles photos souhaitez-vous ?</h2>
+      <p class="card-lead">Cochez les clichés manquants. À la validation, votre messagerie s’ouvre avec un e-mail déjà rédigé à l’attention du client.</p>
+      <div class="pick-grid" id="photoAskPicks">
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Tableau ouvert, porte déposée" />
+          <span>
+            <strong>Tableau ouvert</strong>
+            <em>Porte déposée, modules lisibles</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Étiquettes et calibres des disjoncteurs" />
+          <span>
+            <strong>Étiquettes / calibres</strong>
+            <em>Gros plan des départs</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Barrette de terre / prise de terre" />
+          <span>
+            <strong>Prise de terre</strong>
+            <em>Barrette ou piquet visible</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Compteur Linky et disjoncteur d’abonné" />
+          <span>
+            <strong>Compteur + abonné</strong>
+            <em>Linky et disjoncteur d’arrivée</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Cuisine : emplacement four / plaques" />
+          <span>
+            <strong>Cuisine — futurs départs</strong>
+            <em>Four, plaques, lave-vaisselle</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Prise ouverte (couleur des fils)" />
+          <span>
+            <strong>Prise ouverte</strong>
+            <em>Couleur / section des fils</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Reprendre la photo du tableau (trop de face)" />
+          <span>
+            <strong>Reprendre le tableau</strong>
+            <em>Photo 1 trop de face</em>
+          </span>
+        </label>
+        <label class="pick">
+          <input type="checkbox" name="photoAsk" value="Traces d’humidité ou défauts visibles" />
+          <span>
+            <strong>Défauts / humidité</strong>
+            <em>Si traces autour des boîtiers</em>
+          </span>
+        </label>
+      </div>
+      <label class="lab" for="photoAskNote">Précision libre (optionnel)</label>
+      <textarea id="photoAskNote" placeholder="Ex. photo du tableau avec la porte ouverte, lumière du jour, sans flash."></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-paper" id="photoAskCancel">Annuler</button>
+        <button type="button" class="btn btn-gold" id="photoAskSend">Ouvrir l’e-mail au client</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/store.js"></script>
+  <script src="fiche-client.js"></script>
+</body>
+</html>

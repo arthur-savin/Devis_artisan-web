@@ -1,0 +1,6 @@
+.env
+.env.*
+supabase/.temp
+*.db
+*.db-shm
+*.db-wal

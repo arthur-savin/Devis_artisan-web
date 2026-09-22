@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Espace artisan — Demandes de devis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body class="dash">
+  <div class="gate" id="gate" aria-modal="true" role="dialog" aria-labelledby="gateTitle">
+    <form class="gate-card" id="loginForm">
+      <div class="bolt" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+      </div>
+      <h1 id="gateTitle">Espace artisan</h1>
+      <p>Retrouvez les demandes envoyées depuis le formulaire client.</p>
+      <label for="loginEmail">E-mail</label>
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="vous@atelier.fr" />
+      <label for="loginPass">Mot de passe</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••" />
+      <button class="btn btn-gold" type="submit">Entrer</button>
+      <p class="hint" id="loginHint">Si Supabase est branché, utilisez le compte artisan. En démo locale : <strong>vous@atelier.fr</strong> et un mot de passe de 4 caractères, ou le compte créé plus bas.</p>
+      <p class="gate-extra">Pas encore d’espace ? <a href="../creer/index.html">Créer une page artisan</a></p>
+    </form>
+  </div>
+
+  <div class="app">
+    <aside class="side">
+      <div class="side-brand">
+        <div class="bolt" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+        </div>
+        <div>
+          <strong id="brandName">Espace artisan</strong>
+          <span id="brandMetier">Électricité</span>
+        </div>
+      </div>
+      <nav class="nav-side">
+        <a class="is-on" href="index.html">Demandes</a>
+        <a href="tarifs.html">Grille tarifaire</a>
+        <a id="linkPage" href="../page/index.html">Ma page</a>
+        <a id="linkWidget" href="../widget/index.html">Voir le widget</a>
+      </nav>
+      <div class="side-foot">
+        <span id="backendNote">Chargement…</span>
+        <button type="button" id="resetDemo">Réinitialiser les exemples</button>
+        <button type="button" id="logout">Se déconnecter</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="top">
+        <h1>Demandes reçues</h1>
+        <input class="search" id="search" type="search" placeholder="Rechercher un prénom, un CP…" />
+        <div class="filters" id="filters">
+          <button type="button" class="filter is-on" data-filter="tous">Tous</button>
+          <button type="button" class="filter" data-filter="nouveau">Nouveaux</button>
+          <button type="button" class="filter" data-filter="contacte">Contactés</button>
+          <button type="button" class="filter" data-filter="devis_envoye">Devis envoyés</button>
+          <button type="button" class="filter" data-filter="archive">Archivés</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="stats">
+          <article class="stat"><b id="statNew">0</b><span>Nouveaux</span></article>
+          <article class="stat"><b id="statOpen">0</b><span>Contactés</span></article>
+          <article class="stat"><b id="statSent">0</b><span>Devis envoyés</span></article>
+        </section>
+        <section class="workspace">
+          <div class="panel">
+            <div class="bulk" id="bulk">
+              <label class="bulk-select">
+                <input type="checkbox" id="selectAll" />
+                <span id="selectAllLabel">Tout sélectionner</span>
+              </label>
+              <div class="bulk-tools">
+                <select id="bulkStatus" disabled>
+                  <option value="">Changer le statut</option>
+                </select>
+                <button type="button" class="bulk-hide" id="bulkHide" disabled>Supprimer</button>
+              </div>
+            </div>
+            <div class="list" id="list"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/store.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
