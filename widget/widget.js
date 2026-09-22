@@ -2,6 +2,7 @@
   if (window.self !== window.top || new URLSearchParams(location.search).has("embed")) {
     document.body.classList.add("is-embed");
   }
+  document.body.classList.add("is-booting");
 
   const names = ["Votre besoin", "Captures guidées", "Coordonnées", "Envoi"];
   const MAX_EXTRA = 3;
@@ -33,6 +34,12 @@
   let recording = false;
   let recordStartedAt = 0;
   let recordTimer = null;
+  let restoring = false;
+  let saveTimer = null;
+
+  const DRAFT_DB = "artisan-devis-widget";
+  const DRAFT_STORE = "drafts";
+  const DRAFT_LS = "artisan-devis.widget-draft.v1";
 
   const steps = [...document.querySelectorAll(".step")];
   const bar = document.getElementById("bar");
@@ -41,6 +48,332 @@
   const progressWrap = document.getElementById("progressWrap");
   const dots = [...document.querySelectorAll("[data-dot]")];
 
+  function draftKey() {
+    return (artisanRef || "default") + "";
+  }
+
+  function lsDraftKey() {
+    return DRAFT_LS + ":" + draftKey();
+  }
+
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("timeout")), ms);
+      promise.then(
+        (value) => {
+          clearTimeout(t);
+          resolve(value);
+        },
+        (err) => {
+          clearTimeout(t);
+          reject(err);
+        }
+      );
+    });
+  }
+
+  function openDraftDb() {
+    return withTimeout(
+      new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error("no-idb"));
+          return;
+        }
+        const req = indexedDB.open(DRAFT_DB, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(DRAFT_STORE)) db.createObjectStore(DRAFT_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error("idb"));
+        req.onblocked = () => reject(new Error("idb-blocked"));
+      }),
+      1200
+    );
+  }
+
+  function idbOp(mode, fn) {
+    return openDraftDb().then((db) =>
+      withTimeout(
+        new Promise((resolve, reject) => {
+          const tx = db.transaction(DRAFT_STORE, mode);
+          const store = tx.objectStore(DRAFT_STORE);
+          const req = fn(store);
+          tx.oncomplete = () => {
+            db.close();
+            resolve(req ? req.result : undefined);
+          };
+          tx.onerror = () => {
+            db.close();
+            reject(tx.error || new Error("idb-tx"));
+          };
+        }),
+        1200
+      )
+    );
+  }
+
+  function readContactFields() {
+    const val = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.value : "";
+    };
+    return {
+      besoin: val("besoin"),
+      prenom: val("prenom"),
+      tel: val("tel"),
+      email: val("email"),
+      adresse: val("adresse"),
+      cp: val("cp"),
+    };
+  }
+
+  function fillContactFields(contact) {
+    if (!contact) return;
+    ["besoin", "prenom", "tel", "email", "adresse", "cp"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && contact[id] != null) el.value = contact[id];
+    });
+  }
+
+  function slimLead(lead) {
+    if (!lead) return null;
+    return { id: lead.id || lead.public_id || "", public_id: lead.public_id || lead.id || "" };
+  }
+
+  function landingModeNow() {
+    const result = document.getElementById("landingResult");
+    const error = document.getElementById("landingError");
+    if (result && !result.hidden) return "result";
+    if (error && !error.hidden) return "error";
+    return "wait";
+  }
+
+  function capturedRecords(includeFiles) {
+    return captured.map((c) => ({
+      item: c.item,
+      dataUrl: c.dataUrl || "",
+      frames: Array.isArray(c.frames) ? c.frames : [],
+      title: c.title || (c.item && c.item.label) || "",
+      kind: c.kind === "video" ? "video" : "photo",
+      file: includeFiles && c.file ? c.file : null,
+    }));
+  }
+
+  function draftPayload(includeFiles) {
+    const contact = readContactFields();
+    const descriptionNow = description || String(contact.besoin || "").trim();
+    return {
+      v: 1,
+      artisanRef: artisanRef || "",
+      savedAt: Date.now(),
+      current,
+      description: descriptionNow,
+      plan,
+      queue,
+      queueIndex,
+      extraTaken,
+      lastResult,
+      createdLead: slimLead(createdLead),
+      contact,
+      landingMode: current === 6 ? landingModeNow() : "",
+      captured: capturedRecords(includeFiles),
+    };
+  }
+
+  function hasDraftProgress(payload) {
+    if (!payload) return false;
+    const c = payload.contact || {};
+    return Boolean(
+      payload.current > 1 ||
+        payload.description ||
+        (payload.captured && payload.captured.length) ||
+        c.besoin ||
+        c.prenom ||
+        c.tel ||
+        c.email ||
+        c.adresse ||
+        c.cp
+    );
+  }
+
+  async function clearDraft() {
+    try {
+      localStorage.removeItem(lsDraftKey());
+    } catch {
+      /* ignore */
+    }
+    try {
+      await idbOp("readwrite", (store) => store.delete(draftKey()));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function saveDraft() {
+    if (restoring) return;
+    const payload = draftPayload(true);
+    if (!hasDraftProgress(payload)) {
+      await clearDraft();
+      return;
+    }
+    try {
+      localStorage.setItem(
+        lsDraftKey(),
+        JSON.stringify({ ...payload, captured: capturedRecords(false) })
+      );
+    } catch {
+      try {
+        localStorage.setItem(lsDraftKey(), JSON.stringify({ ...payload, captured: [] }));
+      } catch {
+        /* quota */
+      }
+    }
+    try {
+      await idbOp("readwrite", (store) => store.put(payload, draftKey()));
+    } catch {
+      try {
+        const lighter = { ...payload, captured: capturedRecords(false) };
+        await idbOp("readwrite", (store) => store.put(lighter, draftKey()));
+      } catch {
+        /* quota */
+      }
+    }
+  }
+
+  function scheduleSaveDraft() {
+    if (restoring) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveDraft().catch(() => {});
+    }, 120);
+  }
+
+  function reviveFile(raw, name, mime) {
+    if (!raw) return null;
+    if (raw instanceof File) return raw;
+    if (raw instanceof Blob) {
+      return new File([raw], name || "capture.bin", { type: raw.type || mime || "" });
+    }
+    return null;
+  }
+
+  function reviveCaptured(list) {
+    return (Array.isArray(list) ? list : []).map((c, i) => {
+      const kind = c && c.kind === "video" ? "video" : "photo";
+      const item = (c && c.item) || { id: "restored_" + (i + 1), label: (c && c.title) || "Capture", kind };
+      const fallbackName = kind === "video" ? "capture.webm" : "capture.jpg";
+      const mime = kind === "video" ? "video/webm" : "image/jpeg";
+      const file = reviveFile(c && c.file, fallbackName, mime);
+      const dataUrl = (c && c.dataUrl) || "";
+      let url = dataUrl;
+      if (file && kind !== "video") url = URL.createObjectURL(file);
+      return {
+        item,
+        file,
+        dataUrl,
+        frames: Array.isArray(c && c.frames) ? c.frames : dataUrl ? [dataUrl] : [],
+        url,
+        title: (c && c.title) || item.label || "",
+        kind,
+      };
+    });
+  }
+
+  async function readDraft() {
+    let data = null;
+    try {
+      data = (await idbOp("readonly", (store) => store.get(draftKey()))) || null;
+    } catch {
+      data = null;
+    }
+    if (!data) {
+      try {
+        data = JSON.parse(localStorage.getItem(lsDraftKey()) || "null");
+      } catch {
+        data = null;
+      }
+    }
+    if (!data || data.v !== 1) return null;
+    if ((data.artisanRef || "") !== (artisanRef || "")) return null;
+    return data;
+  }
+
+  async function restoreDraft() {
+    const data = await readDraft();
+    if (!data) return null;
+    restoring = true;
+    try {
+      description = data.description || "";
+      plan = data.plan || null;
+      queue = Array.isArray(data.queue) ? data.queue : [];
+      queueIndex = Number(data.queueIndex) || 0;
+      extraTaken = Number(data.extraTaken) || 0;
+      lastResult = data.lastResult || null;
+      createdLead = data.createdLead && data.createdLead.id ? data.createdLead : null;
+      captured = reviveCaptured(data.captured);
+      fillContactFields(data.contact || {});
+      const besoin = document.getElementById("besoin");
+      if (besoin && !besoin.value && description) besoin.value = description;
+
+      const lostMedia =
+        Number(data.current) >= 3 &&
+        !captured.length &&
+        plan &&
+        Array.isArray(plan.photos) &&
+        plan.photos.length;
+      if (lostMedia) {
+        queue = plan.photos.slice();
+        queueIndex = 0;
+        extraTaken = 0;
+      }
+
+      let step = Number(data.current) || 1;
+      let resume = "";
+      if (lostMedia) {
+        step = 3;
+      } else if (step === 2) {
+        if (plan && queue.length) step = 3;
+        else if (description) resume = "plan";
+        else step = 1;
+      } else if (step === 4) {
+        if (queueIndex < queue.length && queue.length) step = 3;
+        else if (captured.length) resume = "review";
+        else step = 1;
+      }
+      if (!lostMedia && step === 3 && (!queue.length || queueIndex >= queue.length)) {
+        if (captured.length && !resume) step = 5;
+        else if (!captured.length) {
+          step = plan && plan.photos && plan.photos.length ? 3 : 1;
+          if (step === 3) {
+            queue = (plan.photos || []).slice();
+            queueIndex = 0;
+          }
+        }
+      }
+      if (step > 1 && !description && !(data.contact && data.contact.besoin)) step = 1;
+      if (step === 6 && !createdLead && !lastResult) step = 5;
+      if (resume === "plan") step = 2;
+      if (resume === "review") step = 4;
+
+      direction = "next";
+      show(step, { save: false });
+      if (step === 3) renderShot();
+      if (step === 6) {
+        if (data.landingMode === "error") {
+          setLandingMode("error");
+        } else if (createdLead || lastResult) {
+          renderConfirmation(lastResult || {});
+        } else {
+          setLandingMode("wait");
+        }
+      }
+      return { resume };
+    } finally {
+      restoring = false;
+    }
+  }
+
   function visualStep(n) {
     if (n <= 1) return 1;
     if (n <= 4) return 2;
@@ -48,7 +381,7 @@
     return 4;
   }
 
-  function show(n) {
+  function show(n, opts) {
     steps.forEach((el) => {
       const id = Number(el.dataset.step);
       const active = id === n;
@@ -68,6 +401,7 @@
       d.classList.toggle("is-current", i === visual && n < 6);
       d.classList.toggle("is-done", i < visual || n === 6);
     });
+    if (!opts || opts.save !== false) saveDraft().catch(() => {});
   }
 
   function invalidate(el, on) {
@@ -357,7 +691,9 @@
       done.innerHTML = captured
         .map(
           (c, i) =>
-            `<div class="shot-mini"><img src="${c.url && !isVideo(c.item) ? c.url : c.dataUrl}" alt="${escapeHtml(c.item.label)}" /><span>${i + 1}</span></div>`
+            `<button type="button" class="shot-mini" data-retake="${i}" title="Reprendre cette capture (l’ancienne sera supprimée)">` +
+            `<img src="${c.url && !isVideo(c.item) ? c.url : c.dataUrl}" alt="${escapeHtml(c.item.label)}" />` +
+            `<span>${i + 1}</span></button>`
         )
         .join("");
     } else {
@@ -366,9 +702,47 @@
     }
   }
 
+  function releaseCapture(entry) {
+    if (!entry) return;
+    if (entry.url && String(entry.url).startsWith("blob:")) {
+      try {
+        URL.revokeObjectURL(entry.url);
+      } catch {
+        /* ignore */
+      }
+    }
+    entry.file = null;
+    entry.dataUrl = "";
+    entry.frames = [];
+    entry.url = "";
+  }
+
+  function retakeCaptured(index) {
+    const entry = captured[index];
+    if (!entry || !entry.item) return;
+    const sendBtn = document.getElementById("btnSendPhoto");
+    if (sendBtn && sendBtn.disabled && !sendBtn.hidden) return;
+    stopLiveCamera();
+    clearPreview();
+    const item = entry.item;
+    releaseCapture(entry);
+    captured.splice(index, 1);
+    const remaining = queue.slice(queueIndex);
+    queue = captured.map((c) => c.item).concat([item], remaining);
+    queueIndex = captured.length;
+    attempts = 0;
+    saveDraft().catch(() => {});
+    setFeedback("L’ancienne capture a été supprimée. Vous pouvez en prendre une nouvelle.", "ok");
+    renderShot();
+  }
+
   function clearPreview() {
     stopLiveCamera();
     if (preview && preview.url) URL.revokeObjectURL(preview.url);
+    if (preview) {
+      preview.file = null;
+      preview.url = "";
+    }
     preview = null;
     ["photoCapture", "photoPick"].forEach((id) => {
       const el = document.getElementById(id);
@@ -397,6 +771,10 @@
     }
     stopLiveCamera();
     if (preview && preview.url) URL.revokeObjectURL(preview.url);
+    if (preview) {
+      preview.file = null;
+      preview.url = "";
+    }
     preview = { file, url: URL.createObjectURL(file), kind: isVid ? "video" : "photo" };
     setFeedback("", "");
     renderShot();
@@ -643,6 +1021,7 @@
       preview = null;
       attempts = 0;
       queueIndex += 1;
+      saveDraft();
       setTimeout(() => {
         setFeedback("", "");
         if (queueIndex >= queue.length) {
@@ -928,6 +1307,7 @@
     }
     lastResult = finalized;
     renderConfirmation(finalized || {});
+    saveDraft();
   }
 
   document.getElementById("devisForm").addEventListener("click", (e) => {
@@ -967,6 +1347,7 @@
             (err.message || "L’analyse n’a pas abouti.") +
             " Votre demande est bien partie : l’artisan la reçoit quand même.";
           setLandingMode("error");
+          saveDraft().catch(() => {});
         });
       }
     }
@@ -983,9 +1364,15 @@
     item.hint = videoHint(item.hint);
     setFeedback("Filmez ici, en 720p, 30 secondes maximum. Pas d’import depuis l’appareil.", "ok");
     renderShot();
+    saveDraft().catch(() => {});
   }
 
   document.getElementById("btnSendPhoto").addEventListener("click", sendCurrentPhoto);
+  document.getElementById("shotDone").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-retake]");
+    if (!btn) return;
+    retakeCaptured(Number(btn.dataset.retake));
+  });
   document.getElementById("btnCapture").addEventListener("click", () => {
     if (itemKind() === "video") {
       if (recording) {
@@ -1022,6 +1409,7 @@
     const clear = () => {
       const field = el.closest(".field");
       if (field) field.classList.remove("is-invalid");
+      scheduleSaveDraft();
     };
     el.addEventListener("input", clear);
     el.addEventListener("change", clear);
@@ -1062,6 +1450,7 @@
         area.value = [base, transcript].filter(Boolean).join(base && !base.endsWith(" ") ? " " : "");
         document.getElementById("f-besoin").classList.remove("is-invalid");
         document.getElementById("err1").classList.remove("is-on");
+        scheduleSaveDraft();
       };
       recognition.start();
     });
@@ -1091,7 +1480,9 @@
     if (errSend) errSend.classList.remove("is-on");
     setLandingMode("wait");
     direction = "back";
-    show(1);
+    clearTimeout(saveTimer);
+    show(1, { save: false });
+    clearDraft();
   });
 
   document.getElementById("landingRetry").addEventListener("click", () => {
@@ -1101,18 +1492,36 @@
       document.getElementById("landingErrorText").textContent =
         err.message || "L’envoi n’a pas abouti. Réessayez dans un instant.";
       setLandingMode("error");
+      saveDraft().catch(() => {});
     });
   });
 
-  (async function brand() {
-    if (!window.DevisStore) return;
-    await window.DevisStore.ready();
-    artisan = await window.DevisStore.resolvePublicArtisan(artisanRef);
-    if (!artisan) return;
-    const sub = document.getElementById("brandSub");
-    if (sub) {
-      sub.textContent = [artisan.metier, artisan.ville || "particuliers"].filter(Boolean).join(" · ");
+  window.addEventListener("pagehide", () => {
+    clearTimeout(saveTimer);
+    saveDraft();
+  });
+
+  (async function boot() {
+    const unveil = () => document.body.classList.remove("is-booting");
+    const safety = setTimeout(unveil, 2500);
+    try {
+      if (window.DevisStore) {
+        await withTimeout(window.DevisStore.ready(), 2000).catch(() => {});
+        artisan = await window.DevisStore.resolvePublicArtisan(artisanRef);
+        if (artisan) {
+          const sub = document.getElementById("brandSub");
+          if (sub) {
+            sub.textContent = [artisan.metier, artisan.ville || "particuliers"].filter(Boolean).join(" · ");
+          }
+          document.title = "Demande de devis — " + artisan.displayName;
+        }
+      }
+      const restored = await withTimeout(restoreDraft(), 1500).catch(() => null);
+      if (restored && restored.resume === "plan") startPlan();
+      else if (restored && restored.resume === "review") startReview();
+    } finally {
+      clearTimeout(safety);
+      unveil();
     }
-    document.title = "Demande de devis — " + artisan.displayName;
   })();
 })();

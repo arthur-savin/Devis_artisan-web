@@ -4,6 +4,11 @@ body.widget {
     linear-gradient(180deg, #15263A 0%, var(--navy) 42%, #0A1420 100%);
 }
 
+body.widget.is-booting .progress-wrap,
+body.widget.is-booting .viewport {
+  visibility: hidden;
+}
+
 .page {
   min-height: 100dvh;
   display: flex;
@@ -1167,6 +1172,15 @@ body.widget {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--line);
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+button.shot-mini:hover,
+button.shot-mini:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 .shot-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
