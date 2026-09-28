@@ -1206,6 +1206,74 @@ button.shot-mini:focus-visible {
 #landingPrice[hidden],
 #predevisTotal[hidden] { display: none !important; }
 
+.video-check {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  margin: auto;
+  border: 0;
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.video-check::backdrop {
+  background: rgba(10, 20, 32, 0.62);
+}
+
+.video-check h2 {
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.video-check .lead {
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.video-check video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 14px;
+  background: #0a1420;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.video-check-need {
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.video-check-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  margin-bottom: 6px;
+}
+
+.video-check-label {
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.video-check-hint {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.video-check .nav { margin-top: 16px; }
+
 .foot a { color: var(--gold); }
 
 body.is-embed {

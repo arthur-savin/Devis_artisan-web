@@ -952,46 +952,132 @@
     }
   }
 
+  function closeVideoCheck() {
+    const dlg = document.getElementById("videoCheck");
+    const player = document.getElementById("videoCheckPlayer");
+    if (player) {
+      player.pause();
+      player.removeAttribute("src");
+      player.load();
+    }
+    if (dlg && dlg.open) dlg.close();
+  }
+
+  function openVideoCheck() {
+    const item = currentItem();
+    const dlg = document.getElementById("videoCheck");
+    if (!item || !dlg || !preview) return;
+    const label = document.getElementById("videoCheckLabel");
+    const hint = document.getElementById("videoCheckHint");
+    const player = document.getElementById("videoCheckPlayer");
+    const okBtn = document.getElementById("videoCheckOk");
+    if (label) label.textContent = item.label;
+    if (hint) {
+      hint.textContent =
+        item.hint || "Filmez lentement, à la lumière du jour, de l’ensemble vers le détail.";
+    }
+    if (player && preview.url) {
+      player.src = preview.url;
+      player.currentTime = 0;
+    }
+    if (okBtn) {
+      okBtn.disabled = false;
+      okBtn.textContent = "Oui, elle convient";
+    }
+    if (!dlg.open) dlg.showModal();
+  }
+
+  function declineVideo() {
+    closeVideoCheck();
+    setFeedback("Reprenez la vidéo si un élément demandé n’y figure pas.", "wait");
+  }
+
+  async function confirmVideo() {
+    const item = currentItem();
+    const okBtn = document.getElementById("videoCheckOk");
+    if (!item || !preview) {
+      closeVideoCheck();
+      return;
+    }
+    if (okBtn) {
+      okBtn.disabled = true;
+      okBtn.textContent = "Enregistrement…";
+    }
+    let thumb = null;
+    try {
+      thumb = await Promise.race([
+        videoToFrames(preview.file, 2),
+        new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
+    } catch {
+      thumb = null;
+    }
+    const images =
+      thumb && thumb.frames && thumb.frames.length
+        ? thumb.frames
+        : thumb && thumb.dataUrl
+          ? [thumb.dataUrl]
+          : [];
+    const file = preview.file;
+    const blobUrl = preview.url;
+    closeVideoCheck();
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    captured.push({
+      item,
+      file,
+      dataUrl: thumb ? thumb.dataUrl : "",
+      frames: images,
+      url: thumb ? thumb.dataUrl : "",
+      title: item.label,
+      kind: "video",
+    });
+    preview = null;
+    attempts = 0;
+    queueIndex += 1;
+    saveDraft();
+    setFeedback("Merci, votre vidéo est enregistrée. On continue.", "ok");
+    setTimeout(() => {
+      setFeedback("", "");
+      if (queueIndex >= queue.length) {
+        startReview();
+      } else {
+        renderShot();
+      }
+    }, 700);
+  }
+
   async function sendCurrentPhoto() {
     const item = currentItem();
     const btn = document.getElementById("btnSendPhoto");
     const videoMode = itemKind() === "video";
     if (!item || !preview) return;
+    if (videoMode) {
+      openVideoCheck();
+      return;
+    }
     btn.disabled = true;
-    btn.textContent = videoMode ? "Lecture de la vidéo…" : "Lecture de la photo…";
-    setFeedback(
-      videoMode
-        ? "Nous regardons si cette vidéo permet à l’artisan de bien voir l’élément."
-        : "Nous regardons si cette photo permet à l’artisan de bien voir l’élément.",
-      "wait"
-    );
+    btn.textContent = "Lecture de la photo…";
+    setFeedback("Nous regardons si cette photo permet à l’artisan de bien voir l’élément.", "wait");
     try {
-      const thumb = videoMode ? await videoToFrames(preview.file, 2) : await fileToThumb(preview.file);
+      const thumb = await fileToThumb(preview.file);
       if (!thumb) {
-        throw new Error(
-          videoMode
-            ? "Cette vidéo n’a pas pu être lue. Essayez-en une autre, plus courte."
-            : "Cette image n’a pas pu être lue. Essayez-en une autre."
-        );
+        throw new Error("Cette image n’a pas pu être lue. Essayez-en une autre.");
       }
-      const images = videoMode && thumb.frames && thumb.frames.length ? thumb.frames : [thumb.dataUrl];
+      const images = [thumb.dataUrl];
       const result = await window.DevisStore.qualify("validate_photo", {
         description,
         label: item.label,
         hint: item.hint,
-        kind: videoMode ? "video" : "photo",
+        kind: "photo",
         image: images[0],
         images,
       });
       const accepted = result.accepted === true || (result.accepted == null && result.ok === true);
-      const sendLabel = videoMode ? "Envoyer cette vidéo" : "Envoyer cette photo";
+      const sendLabel = "Envoyer cette photo";
       if (!accepted && attempts + 1 < MAX_ATTEMPTS) {
         attempts += 1;
         setFeedback(
-          result.message ||
-            (videoMode
-              ? "Pouvez-vous filmer à nouveau, plus lentement, un peu plus près ?"
-              : "Pouvez-vous reprendre la photo un peu plus près, à la lumière du jour ?"),
+          result.message || "Pouvez-vous reprendre la photo un peu plus près, à la lumière du jour ?",
           "wait"
         );
         btn.disabled = false;
@@ -1000,23 +1086,20 @@
       }
       if (!accepted) {
         setFeedback(
-          videoMode
-            ? "Nous transmettons cette vidéo telle quelle. L’artisan pourra vous redemander un cliché s’il en a besoin."
-            : "Nous transmettons cette photo telle quelle. L’artisan pourra vous redemander un cliché s’il en a besoin.",
+          "Nous transmettons cette photo telle quelle. L’artisan pourra vous redemander un cliché s’il en a besoin.",
           "ok"
         );
       } else {
         setFeedback(result.message || "Merci, c’est bien lisible. On continue.", "ok");
       }
-      if (preview.url && videoMode) URL.revokeObjectURL(preview.url);
       captured.push({
         item,
         file: preview.file,
         dataUrl: thumb.dataUrl,
         frames: images,
-        url: preview.kind === "video" ? thumb.dataUrl : preview.url,
+        url: preview.url,
         title: item.label,
-        kind: videoMode ? "video" : "photo",
+        kind: "photo",
       });
       preview = null;
       attempts = 0;
@@ -1036,7 +1119,7 @@
         "wait"
       );
       btn.disabled = false;
-      btn.textContent = videoMode ? "Envoyer cette vidéo" : "Envoyer cette photo";
+      btn.textContent = "Envoyer cette photo";
     }
   }
 
@@ -1368,6 +1451,12 @@
   }
 
   document.getElementById("btnSendPhoto").addEventListener("click", sendCurrentPhoto);
+  document.getElementById("videoCheckRetry").addEventListener("click", declineVideo);
+  document.getElementById("videoCheckOk").addEventListener("click", confirmVideo);
+  document.getElementById("videoCheck").addEventListener("cancel", (e) => {
+    e.preventDefault();
+    declineVideo();
+  });
   document.getElementById("shotDone").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-retake]");
     if (!btn) return;

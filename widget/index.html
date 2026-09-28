@@ -198,6 +198,20 @@
     </section>
     <p class="foot">La demande arrive dans l’<a href="../dashboard/index.html">espace artisan</a>.</p>
   </main>
+  <dialog class="video-check" id="videoCheck" aria-labelledby="videoCheckTitle">
+    <h2 id="videoCheckTitle">Cette vidéo est-elle convenable ?</h2>
+    <p class="lead">Regardez-la, puis confirmez qu’elle montre bien les éléments demandés. Elle sera envoyée telle quelle.</p>
+    <video id="videoCheckPlayer" playsinline controls></video>
+    <div class="video-check-need">
+      <p class="video-check-kicker">Éléments nécessaires</p>
+      <p class="video-check-label" id="videoCheckLabel"></p>
+      <p class="video-check-hint" id="videoCheckHint"></p>
+    </div>
+    <div class="nav">
+      <button type="button" class="btn btn-back" id="videoCheckRetry">Non, je la reprends</button>
+      <button type="button" class="btn btn-next" id="videoCheckOk">Oui, elle convient</button>
+    </div>
+  </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="../shared/supabase-config.js"></script>
   <script src="../shared/store.js"></script>
