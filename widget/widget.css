@@ -115,6 +115,29 @@ body.widget.is-booting .viewport {
   margin-top: 10px;
 }
 
+.progress-restart {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btn-restart {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 2px 0 0;
+}
+
+.btn-restart:hover,
+.btn-restart:focus-visible { color: var(--navy); }
+
 .steps-dots li {
   list-style: none;
   font-size: 0.68rem;

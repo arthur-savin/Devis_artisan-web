@@ -36,6 +36,7 @@
   let recordTimer = null;
   let restoring = false;
   let saveTimer = null;
+  let journey = 0;
 
   const DRAFT_DB = "artisan-devis-widget";
   const DRAFT_STORE = "drafts";
@@ -891,6 +892,7 @@
   }
 
   async function startPlan() {
+    const run = journey;
     direction = "next";
     show(2);
     const waitText = document.getElementById("planWaitText");
@@ -900,6 +902,7 @@
         metier: artisan && artisan.metier,
         artisan_ref: artisanRef || (artisan && artisan.id) || "",
       });
+      if (run !== journey) return;
       const photos = capVideoKinds(
         (Array.isArray(result.photos) ? result.photos : [])
           .slice(0, 5)
@@ -946,6 +949,7 @@
           (err && err.message) || "Nous n’avons pas pu préparer les photos. Réessayez.";
       }
       setTimeout(() => {
+        if (run !== journey) return;
         direction = "back";
         show(1);
       }, 1600);
@@ -993,6 +997,7 @@
   }
 
   async function confirmVideo() {
+    const run = journey;
     const item = currentItem();
     const okBtn = document.getElementById("videoCheckOk");
     if (!item || !preview) {
@@ -1012,6 +1017,7 @@
     } catch {
       thumb = null;
     }
+    if (run !== journey) return;
     const images =
       thumb && thumb.frames && thumb.frames.length
         ? thumb.frames
@@ -1037,6 +1043,7 @@
     saveDraft();
     setFeedback("Merci, votre vidéo est enregistrée. On continue.", "ok");
     setTimeout(() => {
+      if (run !== journey) return;
       setFeedback("", "");
       if (queueIndex >= queue.length) {
         startReview();
@@ -1124,6 +1131,7 @@
   }
 
   async function startReview() {
+    const run = journey;
     direction = "next";
     show(4);
     try {
@@ -1133,6 +1141,7 @@
         photo_labels: captured.map((c) => c.item.label + (isVideo(c.item) ? " (vidéo)" : "")),
         extra_taken: extraTaken,
       });
+      if (run !== journey) return;
       lastResult = result;
       const extras = Array.isArray(result.extra_photos) ? result.extra_photos : [];
       const room = Math.max(0, MAX_EXTRA - extraTaken);
@@ -1166,6 +1175,7 @@
       document.getElementById("reviewWaitText").textContent =
         "Nous transmettons le dossier en l’état. L’artisan pourra demander un complément s’il le souhaite.";
       setTimeout(() => {
+        if (run !== journey) return;
         direction = "next";
         show(5);
       }, 1200);
@@ -1545,12 +1555,38 @@
     });
   }
 
-  document.getElementById("restart").addEventListener("click", () => {
+  function restartFromStart(force) {
+    const besoin = document.getElementById("besoin");
+    const contactDirty = ["prenom", "tel", "email", "adresse", "cp"].some((id) => {
+      const el = document.getElementById(id);
+      return el && String(el.value || "").trim();
+    });
+    const dirty =
+      current > 1 || captured.length || contactDirty || (besoin && besoin.value.trim().length > 0);
+    if (
+      !force &&
+      dirty &&
+      !window.confirm(
+        "Recommencer depuis le début ? La description, les photos et les vidéos déjà saisies seront effacées."
+      )
+    ) {
+      return;
+    }
+    journey += 1;
+    if (recognition && recognizing) {
+      try {
+        recognition.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    closeVideoCheck();
     captured.forEach((c) => {
       if (c.url && String(c.url).startsWith("blob:")) URL.revokeObjectURL(c.url);
     });
     stopLiveCamera();
     clearPreview();
+    setFeedback("", "");
     description = "";
     plan = null;
     queue = [];
@@ -1561,18 +1597,35 @@
     createdLead = null;
     lastResult = null;
     document.getElementById("devisForm").reset();
+    const sendBtn = document.getElementById("btnSendPhoto");
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.hidden = true;
+    }
     document.getElementById("submitBtn").disabled = false;
     document.getElementById("submitBtn").textContent = "Transmettre le dossier";
     document.querySelectorAll(".is-invalid").forEach((el) => el.classList.remove("is-invalid"));
     document.getElementById("err1").classList.remove("is-on");
     const errSend = document.getElementById("errSend");
     if (errSend) errSend.classList.remove("is-on");
+    const planWaitText = document.getElementById("planWaitText");
+    if (planWaitText) {
+      planWaitText.textContent = "Lecture de votre description pour coller au plus près du constat réel.";
+    }
+    const reviewWaitText = document.getElementById("reviewWaitText");
+    if (reviewWaitText) {
+      reviewWaitText.textContent =
+        "Description et captures ensemble, pour vérifier que l’artisan pourra chiffrer sans se déplacer.";
+    }
     setLandingMode("wait");
     direction = "back";
     clearTimeout(saveTimer);
     show(1, { save: false });
     clearDraft();
-  });
+  }
+
+  document.getElementById("btnRestart").addEventListener("click", () => restartFromStart(false));
+  document.getElementById("restart").addEventListener("click", () => restartFromStart(true));
 
   document.getElementById("landingRetry").addEventListener("click", () => {
     const btn = document.getElementById("submitBtn");
