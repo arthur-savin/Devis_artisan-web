@@ -13,7 +13,6 @@ const BUCKET = "chantier-photos";
 const MAX_PHOTOS = 8;
 const MAX_PHOTO_BYTES = 4_500_000;
 const MAX_PLAN_PHOTOS = 5;
-const MAX_EXTRA_PHOTOS = 3;
 
 const TONE = `PRINCIPES TRANSVERSAUX — obligatoires à chaque réponse
 - Ton toujours bienveillant : aucune formulation qui pourrait faire sentir au client qu’il a mal fait quelque chose. Interdit : « refusé », « incorrect », « mauvaise photo », « vous n’avez pas », « photo inutilisable ».
@@ -29,6 +28,7 @@ MISSION
 Mélange photos et vidéos selon ce qui sert le constat réel. Maximum 5 vidéos : les 5 questions peuvent être des vidéos si le constat l’exige. Chaque vidéo est filmée dans le formulaire web, 720p, environ 30 secondes (pas d’import 4K). Souvent 3–4 photos + 1–2 vidéos, ou 5 photos si tout est statique.
 Cette liste n’est JAMAIS fixe : elle s’adapte à cette demande précise.
 Chaque élément sera demandé un par un.
+Interdit de demander un démontage : ne pas faire retirer un cache, un capot, un habillage, ni ouvrir un tableau ou dévisser quoi que ce soit. Uniquement ce qui est déjà visible et accessible, sans outil et sans risque d’abîmer.
 
 SORTIE — UNIQUEMENT un JSON valide, sans markdown.
 {
@@ -54,6 +54,7 @@ Dis si elle convient pour cet élément.
 
 Convient si : on reconnaît le bon élément, le cadrage permet de s’en servir, la netteté et la lumière suffisent.
 Ne convient pas si : flou, trop sombre / cramé, mauvais élément, trop loin, détail illisible, photo de document / visage sans rapport.
+Un cache, un capot ou un habillage encore en place convient : ne demande jamais de le retirer, de démonter, de dévisser ou d’ouvrir un tableau.
 
 SORTIE — UNIQUEMENT un JSON valide, sans markdown.
 {
@@ -62,17 +63,16 @@ SORTIE — UNIQUEMENT un JSON valide, sans markdown.
 }
 
 - Si ok = true : une phrase courte d’accusé de réception (ex. « Merci, c’est bien lisible, on passe à la suite. »).
-- Si ok = false : UNE phrase claire et bienveillante qui dit quoi faire différemment. Exemples : « Pouvez-vous vous rapprocher un peu, pour qu’on distingue le détail ? », « La lumière est un peu juste : près d’une fenêtre, sans flash, ce sera plus net. »
+- Si ok = false : UNE phrase claire et bienveillante qui dit quoi faire différemment, uniquement sur le cadrage ou la lumière. Exemples : « Pouvez-vous vous rapprocher un peu, pour qu’on distingue le détail ? », « La lumière est un peu juste : près d’une fenêtre, sans flash, ce sera plus net. » Jamais « retirez le cache », « dévissez », « démontez », « ouvrez le tableau ».
 - message : 20 à 180 caractères, vouvoiement, une seule phrase.`;
 
 const REVIEW_PROMPT = `Tu relis un dossier complet (description + photos) pour décider s’il suffit à un artisan pour établir un devis sans se déplacer.
 ${TONE}
 
 MISSION
-Juge si le dossier est réellement exploitable.
-Si oui : rédige une synthèse pour l’artisan.
-Si non : identifie 1 à ${MAX_EXTRA_PHOTOS} éléments à reprendre ou à ajouter (y compris un élément non prévu au départ si c’est nécessaire), avec un conseil concret pour chaque photo.
-N’invente pas de photos « au cas où ». Seulement ce qui bloque un chiffrage sérieux.
+Rédige une synthèse pour l’artisan à partir des 5 captures déjà prises.
+Ne demande JAMAIS de photo ou de vidéo supplémentaire. extra_photos est toujours un tableau vide.
+Si un point manque pour chiffrer, note-le dans reserves : c’est l’artisan qui redemandera un cliché au client, pas toi.
 Aucun prix.
 
 SORTIE — UNIQUEMENT un JSON valide, sans markdown.
@@ -86,12 +86,12 @@ SORTIE — UNIQUEMENT un JSON valide, sans markdown.
   "extra_photos": [ { "id": string, "kind": "photo" | "video", "label": string, "hint": string } ]
 }
 
-- client_message : vouvoiement, 1 à 3 phrases, bienveillant. Si insuffisant, explique simplement qu’une ou deux photos de plus aideraient l’artisan, sans jamais blâmer.
+- client_message : vouvoiement, 1 à 3 phrases, bienveillant. Ne demande jamais une photo de plus. Le dossier part tel quel ; l’artisan complétera s’il le souhaite.
 - besoin : résumé du besoin pour l’artisan, 200 à 700 caractères, tutoiement artisan.
 - observations : ce qui se voit sur les photos, factuel, 200 à 900 caractères.
 - vigilance : 0 à 5 points de vigilance concrets (accès, sécurité, doute technique). Chaînes de 20 à 200 caractères.
 - reserves : si le dossier part malgré des trous, ce qu’il faudra confirmer. Sinon chaîne vide.
-- extra_photos : si sufficient = true, tableau vide. Sinon 1 à ${MAX_EXTRA_PHOTOS} items, même schéma que le plan.
+- extra_photos : toujours un tableau vide. Aucune capture complémentaire.
 - id extra : snake_case unique, préfixe "extra_" si nouvel élément.`;
 
 const FINALIZE_PROMPT = `Tu finalises la qualification d’un dossier de devis à distance.
@@ -271,21 +271,18 @@ function normalizeValidate(raw: Record<string, unknown>): ValidateJson {
 
 function normalizeReview(raw: Record<string, unknown>): ReviewJson {
   const sufficient = Boolean(raw.sufficient);
-  const extra = sufficient ? [] : parsePhotoItems(raw.extra_photos, MAX_EXTRA_PHOTOS);
   const vigilance = Array.isArray(raw.vigilance)
     ? raw.vigilance.map((line) => clip(line, 220)).filter((line) => line.length >= 12).slice(0, 5)
     : [];
   return {
     sufficient,
     client_message: clip(raw.client_message, 500) ||
-      (sufficient
-        ? "Merci, votre dossier est suffisamment complet pour être transmis à l’artisan."
-        : "Quelques photos supplémentaires aideraient l’artisan à chiffrer plus sereinement."),
+      "Merci, votre dossier part à l’artisan. Il redemandera un cliché seulement s’il en a besoin.",
     besoin: clip(raw.besoin, 900),
     observations: clip(raw.observations, 1200),
     vigilance,
     reserves: clip(raw.reserves, 500),
-    extra_photos: extra,
+    extra_photos: [],
   };
 }
 
@@ -716,28 +713,20 @@ Deno.serve(async (req) => {
       const labels = Array.isArray(payload.photo_labels)
         ? (payload.photo_labels as unknown[]).map((x) => clip(x, 80)).filter(Boolean)
         : [];
-      const extraAlready = Math.max(0, Number(payload.extra_taken) || 0);
       const dossier = [
         "Description du client :",
         description,
         "",
         "Photos jointes, dans l’ordre : " + (labels.join(" · ") || "sans libellé"),
-        "Éléments supplémentaires déjà demandés dans ce parcours : " + String(extraAlready),
-        extraAlready >= MAX_EXTRA_PHOTOS
-          ? "Le plafond de photos supplémentaires est atteint : ne demande plus d’extra_photos, pose des réserves si besoin."
-          : "Tu peux demander au plus " + String(Math.min(MAX_EXTRA_PHOTOS, MAX_EXTRA_PHOTOS - extraAlready)) + " extra_photos.",
+        "Ne demande aucune photo supplémentaire. extra_photos = []. Si un point manque, mets-le dans reserves pour l’artisan.",
       ].join("\n");
       const review = (await callClaude(anthropicKey, REVIEW_PROMPT, dossier, images, (raw) =>
         normalizeReview(raw)
       )) as ReviewJson;
-      if (extraAlready >= MAX_EXTRA_PHOTOS) {
-        review.extra_photos = [];
-        if (!review.sufficient && !review.reserves) {
-          review.reserves =
-            "Dossier transmis malgré quelques zones d’ombre : confirmer sur place les points non visibles.";
-        }
-      } else if (review.extra_photos.length > MAX_EXTRA_PHOTOS - extraAlready) {
-        review.extra_photos = review.extra_photos.slice(0, MAX_EXTRA_PHOTOS - extraAlready);
+      review.extra_photos = [];
+      if (!review.sufficient && !review.reserves) {
+        review.reserves =
+          "Dossier transmis avec les captures disponibles. L’artisan redemandera un complément s’il en a besoin.";
       }
       return jsonResponse(publicReview(review));
     }

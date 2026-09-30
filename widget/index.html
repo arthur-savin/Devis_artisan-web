@@ -91,7 +91,9 @@
               <button type="button" class="btn btn-back" id="btnPick">Choisir dans l’appareil</button>
               <button type="button" class="btn btn-back" id="btnStopRec" hidden>Arrêter</button>
               <button type="button" class="btn btn-back btn-offer-video" id="btnOfferVideo">Filmer une vidéo à la place</button>
+              <button type="button" class="btn btn-back btn-skip-shot" id="btnSkipShot">Passer cette photo</button>
             </div>
+            <p class="shot-skip-note" id="shotSkipNote">Si l’endroit n’est pas accessible, ou s’il faudrait démonter quelque chose au risque de l’abîmer (par exemple un cache de prise), passez : l’artisan redemandera le cliché s’il en a besoin.</p>
             <p class="shot-video-note" id="shotVideoNote" hidden>Filmée ici dans le formulaire, 720p, environ 30 secondes — pas d’import depuis l’appareil (ça évite les fichiers 4K trop lourds).</p>
             <input type="file" id="photoCapture" accept="image/*" capture="environment" hidden />
             <input type="file" id="photoPick" accept="image/*" hidden />
@@ -106,7 +108,7 @@
             <div class="wait-panel" id="reviewWait">
               <span class="landing-spin" aria-hidden="true"></span>
               <h2 id="t4">Nous relisons l’ensemble</h2>
-              <p class="lead" id="reviewWaitText">Description et captures ensemble, pour vérifier que l’artisan pourra chiffrer sans se déplacer.</p>
+              <p class="lead" id="reviewWaitText">Vos 5 captures suffisent. Le dossier part ensuite à l’artisan, qui demandera un complément seulement s’il en a besoin.</p>
             </div>
           </section>
 

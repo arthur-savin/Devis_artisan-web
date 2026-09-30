@@ -5,7 +5,6 @@
   document.body.classList.add("is-booting");
 
   const names = ["Votre besoin", "Captures guidées", "Coordonnées", "Envoi"];
-  const MAX_EXTRA = 3;
   const MAX_ATTEMPTS = 4;
   const MAX_VIDEOS = 5;
   const MAX_VIDEO_MS = 30000;
@@ -21,6 +20,7 @@
   let queue = [];
   let queueIndex = 0;
   let captured = [];
+  let skipped = [];
   let extraTaken = 0;
   let preview = null;
   let attempts = 0;
@@ -174,6 +174,7 @@
       queue,
       queueIndex,
       extraTaken,
+      skipped,
       lastResult,
       createdLead: slimLead(createdLead),
       contact,
@@ -310,6 +311,7 @@
       queue = Array.isArray(data.queue) ? data.queue : [];
       queueIndex = Number(data.queueIndex) || 0;
       extraTaken = Number(data.extraTaken) || 0;
+      skipped = Array.isArray(data.skipped) ? data.skipped.filter((s) => s && s.item) : [];
       lastResult = data.lastResult || null;
       createdLead = data.createdLead && data.createdLead.id ? data.createdLead : null;
       captured = reviveCaptured(data.captured);
@@ -352,6 +354,28 @@
           }
         }
       }
+      if (plan && Array.isArray(plan.photos)) plan.photos = plan.photos.map(softenPlanItem);
+      queue = queue.map(softenPlanItem);
+      if (plan && Array.isArray(plan.photos) && plan.photos.length) {
+        const allowed = new Set(plan.photos.map((p) => p.id));
+        const doneIds = new Set(
+          captured
+            .concat(skipped)
+            .map((c) => c.item && c.item.id)
+            .filter(Boolean)
+        );
+        const still = queue.slice(queueIndex).filter((item) => item && allowed.has(item.id) && !doneIds.has(item.id));
+        if (extraTaken > 0 || still.length !== Math.max(0, queue.length - queueIndex)) {
+          extraTaken = 0;
+          queue = still;
+          queueIndex = 0;
+          if (!still.length && (step === 3 || step === 4 || resume === "review")) {
+            step = captured.length || skipped.length ? 5 : step;
+            resume = "";
+          }
+        }
+      }
+
       if (step > 1 && !description && !(data.contact && data.contact.besoin)) step = 1;
       if (step === 6 && !createdLead && !lastResult) step = 5;
       if (resume === "plan") step = 2;
@@ -441,6 +465,46 @@
 
   function isVideo(item) {
     return item && String(item.kind || "").toLowerCase() === "video";
+  }
+
+  function unsafeCaptureAsk(text) {
+    const s = String(text || "").toLowerCase();
+    if (/d[ée]mont|d[ée]viss/.test(s)) return true;
+    if (/(cache|capot|habillage|enjoliveur|plastron)/.test(s) && /(retir|enlev|ôter|oter|d[ée]clip|sans )/.test(s)) return true;
+    if (/ouvr\w* (le |la |l['’])?(tableau|bo[iî]tier|capot|cache)/.test(s)) return true;
+    return false;
+  }
+
+  function softenPlanItem(item) {
+    if (!item || (!unsafeCaptureAsk(item.label) && !unsafeCaptureAsk(item.hint))) return item;
+    let label = String(item.label || "");
+    if (unsafeCaptureAsk(label)) {
+      label = label
+        .replace(/,?\s*(cache|capot|habillage|enjoliveur|plastron).*$/i, "")
+        .replace(/sans (le |la |l['’])?(cache|capot|habillage).*/i, "")
+        .replace(/(retir\w+|enlev\w+|d[ée]mont\w+|d[ée]viss\w+)\s+/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (label.length < 4 || unsafeCaptureAsk(label)) label = "Élément concerné, sans démontage";
+    }
+    return {
+      ...item,
+      label,
+      hint: "Photographiez seulement ce qui est déjà visible. Ne retirez rien et ne démontez rien. Si ce n’est pas accessible, passez cette photo.",
+    };
+  }
+
+  function artisanDetails() {
+    if (!skipped.length) return description;
+    const lines = skipped.map(
+      (s) => "• " + ((s.item && s.item.label) || "Capture") + " — non prise (inaccessible ou impossible sans abîmer)"
+    );
+    return (
+      description +
+      "\n\nCaptures non réalisées (le client ne pouvait pas les faire sans risque) :\n" +
+      lines.join("\n") +
+      "\nL’artisan redemandera ces photos s’il en a besoin."
+    );
   }
 
   function videoSlotsUsed(includeCurrent) {
@@ -616,14 +680,14 @@
     const pickBtn = document.getElementById("btnPick");
     const videoMode = itemKind() === "video";
     if (!item) return;
+    const shown = softenPlanItem(item);
+    item.label = shown.label;
+    item.hint = shown.hint;
     const word = videoMode ? "Vidéo" : "Photo";
-    const ordinal = captured.length + 1;
-    const total = Math.max(totalPlanned() + extraTaken, captured.length + (queue.length - queueIndex));
+    const ordinal = queueIndex + 1;
+    const total = totalPlanned() || queue.length || 5;
     if (kicker) {
-      kicker.textContent =
-        extraTaken > 0 && captured.length >= totalPlanned()
-          ? word + " complémentaire " + (captured.length - totalPlanned() + 1)
-          : word + " " + ordinal + " sur " + total;
+      kicker.textContent = word + " " + ordinal + " sur " + total;
     }
     if (title) title.textContent = item.label;
     const offerBtn = document.getElementById("btnOfferVideo");
@@ -652,6 +716,10 @@
     if (offerBtn) {
       offerBtn.hidden = !canOfferVideo() || recording || liveOn || Boolean(preview && preview.url);
     }
+    const skipBtn = document.getElementById("btnSkipShot");
+    const skipNote = document.getElementById("shotSkipNote");
+    if (skipBtn) skipBtn.hidden = Boolean(recording || liveOn);
+    if (skipNote) skipNote.hidden = Boolean(recording || liveOn);
     if (videoNote) videoNote.hidden = !videoMode;
     if (badge) badge.hidden = !videoMode;
     if (preview && preview.url) {
@@ -908,12 +976,14 @@
       const photos = capVideoKinds(
         (Array.isArray(result.photos) ? result.photos : [])
           .slice(0, 5)
-          .map((p, i) => ({
-            id: p.id || "media_" + (i + 1),
-            kind: String(p.kind || "").toLowerCase() === "video" ? "video" : "photo",
-            label: p.label,
-            hint: String(p.kind || "").toLowerCase() === "video" ? videoHint(p.hint) : p.hint,
-          }))
+          .map((p, i) =>
+            softenPlanItem({
+              id: p.id || "media_" + (i + 1),
+              kind: String(p.kind || "").toLowerCase() === "video" ? "video" : "photo",
+              label: p.label,
+              hint: String(p.kind || "").toLowerCase() === "video" ? videoHint(p.hint) : p.hint,
+            })
+          )
           .filter((p) => p.label),
         0
       );
@@ -939,6 +1009,7 @@
       queue = planned.slice();
       queueIndex = 0;
       captured = [];
+      skipped = [];
       extraTaken = 0;
       attempts = 0;
       clearPreview();
@@ -1081,12 +1152,17 @@
         image: images[0],
         images,
       });
-      const accepted = result.accepted === true || (result.accepted == null && result.ok === true);
+      const acceptedRaw = result.accepted === true || (result.accepted == null && result.ok === true);
+      const unsafeAsk = !acceptedRaw && unsafeCaptureAsk(result.message);
+      const accepted = acceptedRaw || unsafeAsk;
+      const reply = unsafeAsk
+        ? "On garde cette photo telle quelle. Inutile de démonter ou de retirer un cache."
+        : result.message;
       const sendLabel = "Envoyer cette photo";
       if (!accepted && attempts + 1 < MAX_ATTEMPTS) {
         attempts += 1;
         setFeedback(
-          result.message || "Pouvez-vous reprendre la photo un peu plus près, à la lumière du jour ?",
+          reply || "Pouvez-vous reprendre la photo un peu plus près, à la lumière du jour ?",
           "wait"
         );
         btn.disabled = false;
@@ -1099,7 +1175,7 @@
           "ok"
         );
       } else {
-        setFeedback(result.message || "Merci, c’est bien lisible. On continue.", "ok");
+        setFeedback(reply || "Merci, c’est bien lisible. On continue.", "ok");
       }
       captured.push({
         item,
@@ -1132,45 +1208,54 @@
     }
   }
 
+  function skipCurrentShot() {
+    const item = currentItem();
+    if (!item || recording) return;
+    const sendBtn = document.getElementById("btnSendPhoto");
+    if (sendBtn && !sendBtn.hidden && sendBtn.disabled) return;
+    const run = journey;
+    stopLiveCamera();
+    clearPreview();
+    skipped.push({
+      item: {
+        id: item.id,
+        kind: item.kind === "video" ? "video" : "photo",
+        label: item.label,
+        hint: item.hint,
+      },
+      reason: "Non prise : inaccessible ou impossible sans risquer d’abîmer.",
+    });
+    attempts = 0;
+    queueIndex += 1;
+    saveDraft();
+    setFeedback(
+      "C’est noté : cette capture n’est pas exigée. L’artisan pourra vous la redemander s’il en a besoin.",
+      "ok"
+    );
+    setTimeout(() => {
+      if (run !== journey) return;
+      setFeedback("", "");
+      if (queueIndex >= queue.length) startReview();
+      else renderShot();
+    }, 700);
+  }
+
   async function startReview() {
     const run = journey;
     direction = "next";
     show(4);
     try {
       const result = await window.DevisStore.qualify("review", {
-        description,
+        description: artisanDetails(),
         images: captured.flatMap((c) => (c.frames && c.frames.length ? c.frames : [c.dataUrl])),
-        photo_labels: captured.map((c) => c.item.label + (isVideo(c.item) ? " (vidéo)" : "")),
+        photo_labels: captured
+          .map((c) => c.item.label + (isVideo(c.item) ? " (vidéo)" : ""))
+          .concat(skipped.map((s) => ((s.item && s.item.label) || "Capture") + " (non prise)")),
         extra_taken: extraTaken,
       });
       if (run !== journey) return;
       lastResult = result;
-      const extras = Array.isArray(result.extra_photos) ? result.extra_photos : [];
-      const room = Math.max(0, MAX_EXTRA - extraTaken);
-      const needed = capVideoKinds(
-        extras
-          .slice(0, room)
-          .map((p, i) => ({
-            id: p.id || "extra_" + (i + 1),
-            kind: String(p.kind || "").toLowerCase() === "video" ? "video" : "photo",
-            label: p.label,
-            hint: String(p.kind || "").toLowerCase() === "video" ? videoHint(p.hint) : p.hint,
-          }))
-          .filter((p) => p.label),
-        captured.filter((c) => c.kind === "video").length
-      );
-      if (!result.sufficient && needed.length && extraTaken < MAX_EXTRA) {
-        extraTaken += needed.length;
-        queue = needed;
-        queueIndex = 0;
-        attempts = 0;
-        clearPreview();
-        direction = "next";
-        show(3);
-        setFeedback(result.client_message || "Quelques captures de plus aideraient l’artisan.", "wait");
-        renderShot();
-        return;
-      }
+      if (result) result.extra_photos = [];
       direction = "next";
       show(5);
     } catch (err) {
@@ -1224,6 +1309,7 @@
     const mediaBits = [];
     if (nPhoto) mediaBits.push(nPhoto + " photo" + (nPhoto > 1 ? "s" : ""));
     if (nVideo) mediaBits.push(nVideo + " vidéo" + (nVideo > 1 ? "s" : ""));
+    if (skipped.length) mediaBits.push(skipped.length + " passée" + (skipped.length > 1 ? "s" : ""));
     document.getElementById("summary").innerHTML =
       `<dt>Besoin</dt><dd>${escapeHtml(description.slice(0, 220))}${description.length > 220 ? "…" : ""}</dd>` +
       `<dt>Captures</dt><dd>${mediaBits.join(" · ") || captured.length + " capture(s)"}</dd>` +
@@ -1376,7 +1462,7 @@
     const payload = {
       artisanRef: artisanRef || (artisan && artisan.id) || "",
       travaux: [plan && plan.intervention, plan && plan.metier].filter(Boolean),
-      details: description,
+      details: artisanDetails(),
       prenom: document.getElementById("prenom").value.trim(),
       tel: document.getElementById("tel").value.trim(),
       email: document.getElementById("email").value.trim(),
@@ -1389,10 +1475,10 @@
     try {
       finalized = await window.DevisStore.qualify("finalize", {
         public_id: createdLead.id,
-        description,
+        description: artisanDetails(),
         snapshot: {
           ...createdLead,
-          details: description,
+          details: artisanDetails(),
           travaux: payload.travaux,
           photos: captured.map((c) => ({ kind: c.kind === "video" ? "video" : "photo", title: c.item.label })),
         },
@@ -1463,6 +1549,7 @@
   }
 
   document.getElementById("btnSendPhoto").addEventListener("click", sendCurrentPhoto);
+  document.getElementById("btnSkipShot").addEventListener("click", skipCurrentShot);
   document.getElementById("videoCheckRetry").addEventListener("click", declineVideo);
   document.getElementById("videoCheckOk").addEventListener("click", confirmVideo);
   document.getElementById("videoCheck").addEventListener("cancel", (e) => {
@@ -1598,6 +1685,7 @@
     queue = [];
     queueIndex = 0;
     captured = [];
+    skipped = [];
     extraTaken = 0;
     attempts = 0;
     createdLead = null;
@@ -1622,7 +1710,7 @@
     const reviewWaitText = document.getElementById("reviewWaitText");
     if (reviewWaitText) {
       reviewWaitText.textContent =
-        "Description et captures ensemble, pour vérifier que l’artisan pourra chiffrer sans se déplacer.";
+        "Vos 5 captures suffisent. Le dossier part ensuite à l’artisan, qui demandera un complément seulement s’il en a besoin.";
     }
     setLandingMode("wait");
     direction = "back";

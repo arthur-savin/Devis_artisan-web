@@ -967,32 +967,21 @@
 
   function localReview(payload) {
     const photos = Array.isArray(payload && payload.images) ? payload.images : [];
-    const extraTaken = Math.max(0, Number(payload && payload.extra_taken) || 0);
     const description = String((payload && payload.description) || "").trim();
-    const sufficient = photos.length >= 1;
     return {
       ok: true,
-      sufficient: sufficient || extraTaken >= 3,
-      client_message: sufficient
-        ? "Merci, votre dossier est suffisamment complet pour être transmis à l’artisan."
-        : "Une photo supplémentaire aiderait l’artisan à bien comprendre le chantier.",
+      sufficient: photos.length >= 1,
+      client_message: "Merci, votre dossier part à l’artisan. Il redemandera un cliché seulement s’il en a besoin.",
       besoin: description.slice(0, 700) || "Besoin décrit par le client.",
       observations:
         "Dossier constitué à partir de la description et de " +
         photos.length +
         " photo(s). À confirmer par l’artisan avant tout devis ferme.",
       vigilance: [],
-      reserves: sufficient ? "" : "Quelques points pourront être confirmés au téléphone ou sur place.",
-      extra_photos:
-        sufficient || extraTaken >= 3
-          ? []
-          : [
-              {
-                id: "extra_complement",
-                label: "Complément de la zone concernée",
-                hint: "Un autre angle, de jour, un peu plus large pour situer le détail déjà photographié.",
-              },
-            ].slice(0, Math.max(0, 3 - extraTaken)).map((p) => ({ ...p, kind: p.kind || "photo" })),
+      reserves: photos.length
+        ? ""
+        : "Aucune photo jointe. L’artisan redemandera un complément s’il en a besoin.",
+      extra_photos: [],
     };
   }
 

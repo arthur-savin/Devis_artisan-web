@@ -1,7 +1,6 @@
 const MODEL = "claude-sonnet-4-6";
 export const PLAN_COUNT = 5;
 const MAX_PHOTOS = 8;
-const MAX_EXTRA = 3;
 const MAX_VIDEOS = 5;
 
 const TONE = `Ton toujours bienveillant. Vouvoiement client. Jamais de prix.`;
@@ -23,6 +22,7 @@ Choisis les 5 vues qu’un artisan prendrait pour chiffrer sans se déplacer :
 5. angle complémentaire utile à CETTE demande (pas une vue générique)
 
 Adapte-toi strictement aux mots du client (pièce, matériau, symptôme). Interdit : liste fixe copiée d’un métier.
+Interdit de demander un démontage : ne pas faire retirer un cache, un capot, un habillage, ni ouvrir un tableau ou dévisser quoi que ce soit. Uniquement ce qui est déjà visible et accessible, sans outil et sans risque d’abîmer.
 
 SORTIE — UNIQUEMENT un JSON valide, sans markdown.
 {
@@ -40,14 +40,17 @@ SORTIE — UNIQUEMENT un JSON valide, sans markdown.
 const VALIDATE_PROMPT = `Tu vérifies UNE capture (photo, ou images extraites d’une courte vidéo) pour un devis à distance.
 ${TONE}
 Convient si on reconnaît l’élément demandé, net, assez proche, lumière suffisante.
-Sinon : une phrase bienveillante pour corriger (jamais « refusé »).
+Un cache, un capot ou un habillage encore en place ne rend PAS la photo incorrecte : ne demande jamais de le retirer, de démonter ou de dévisser.
+Sinon : une phrase bienveillante pour corriger le cadrage ou la lumière (jamais « refusé », jamais de démontage).
 
 SORTIE JSON uniquement :
 { "ok": boolean, "message": string }`;
 
-const REVIEW_PROMPT = `Tu relis description + captures. Le dossier suffit-il à chiffrer sans visite ?
+const REVIEW_PROMPT = `Tu relis description + captures pour la synthèse artisan.
 ${TONE}
-Si non : 1 à ${MAX_EXTRA} extra_photos (kind photo ou video). Aucun prix.
+Le client a déjà fait les 5 captures prévues. N’en demande JAMAIS d’autres : extra_photos est toujours [].
+S’il manque un point, note-le dans reserves. C’est l’artisan qui redemandera une photo, pas toi.
+client_message ne demande pas de photo supplémentaire. Aucun prix.
 
 SORTIE JSON uniquement :
 {
@@ -273,29 +276,28 @@ export async function tryHandleMediaQualify(
     const labels = Array.isArray(payload.photo_labels)
       ? (payload.photo_labels as unknown[]).map((x) => clip(x, 80)).filter(Boolean)
       : [];
-    const extraAlready = Math.max(0, Number(payload.extra_taken) || 0);
     const dossier = [
       "Description du client :",
       description,
       "",
       "Captures, dans l’ordre : " + (labels.join(" · ") || "sans libellé"),
-      "Compléments déjà demandés : " + String(extraAlready),
+      "Ne demande aucune photo supplémentaire. extra_photos = []. Les manques vont dans reserves, pour l’artisan.",
     ].join("\n");
     const raw = (await callClaude(ctx.apiKey, REVIEW_PROMPT, dossier, images, (row) => row)) as Record<string, unknown>;
     const sufficient = Boolean(raw.sufficient);
-    let extra = sufficient ? [] : parseItems(raw.extra_photos, Math.min(MAX_EXTRA, Math.max(0, MAX_EXTRA - extraAlready)));
-    if (extraAlready >= MAX_EXTRA) extra = [];
     return jsonOf(ctx.cors, {
       ok: true,
       sufficient,
-      client_message: clip(raw.client_message, 500),
+      client_message: clip(raw.client_message, 500) ||
+        "Merci, votre dossier part à l’artisan. Il redemandera un cliché seulement s’il en a besoin.",
       besoin: clip(raw.besoin, 900),
       observations: clip(raw.observations, 1200),
       vigilance: Array.isArray(raw.vigilance)
         ? raw.vigilance.map((line) => clip(line, 220)).filter((line) => line.length >= 12).slice(0, 5)
         : [],
-      reserves: clip(raw.reserves, 500),
-      extra_photos: extra,
+      reserves: clip(raw.reserves, 500) ||
+        (sufficient ? "" : "Dossier transmis avec les captures disponibles. L’artisan redemandera un complément s’il en a besoin."),
+      extra_photos: [],
     });
   }
 

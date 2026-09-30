@@ -1161,9 +1161,24 @@ body.widget.is-booting .viewport {
 .shot-actions .btn-navy { width: auto; }
 .shot-actions .btn-back { min-width: 0; }
 
-.btn-offer-video {
+.btn-offer-video,
+.btn-skip-shot {
   grid-column: 1 / -1;
 }
+
+.btn-skip-shot {
+  font-weight: 600;
+}
+
+.shot-skip-note {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.shot-skip-note[hidden],
+.btn-skip-shot[hidden] { display: none !important; }
 
 .shot-feedback {
   margin: 8px 0 4px;
