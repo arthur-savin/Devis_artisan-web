@@ -397,6 +397,8 @@
     stepLabel.textContent = String(Math.min(visual, 4));
     stepName.textContent = n === 6 ? "Transmission" : names[visual - 1];
     progressWrap.style.display = n === 6 ? "none" : "";
+    const restartBtn = document.getElementById("btnRestart");
+    if (restartBtn) restartBtn.hidden = n <= 1;
     dots.forEach((d) => {
       const i = Number(d.dataset.dot);
       d.classList.toggle("is-current", i === visual && n < 6);
@@ -1557,17 +1559,20 @@
 
   function restartFromStart(force) {
     const besoin = document.getElementById("besoin");
+    const keptBesoin = ((besoin && besoin.value) || description || "").trim();
     const contactDirty = ["prenom", "tel", "email", "adresse", "cp"].some((id) => {
       const el = document.getElementById(id);
       return el && String(el.value || "").trim();
     });
-    const dirty =
-      current > 1 || captured.length || contactDirty || (besoin && besoin.value.trim().length > 0);
+    const progressed = current > 1 || captured.length || contactDirty;
+    if (!force && !progressed) {
+      if (besoin) besoin.focus();
+      return;
+    }
     if (
       !force &&
-      dirty &&
       !window.confirm(
-        "Recommencer depuis le début ? La description, les photos et les vidéos déjà saisies seront effacées."
+        "Revenir à l’étape Besoin ? Les photos, les vidéos et les coordonnées seront effacées. Votre description reste modifiable."
       )
     ) {
       return;
@@ -1587,7 +1592,8 @@
     stopLiveCamera();
     clearPreview();
     setFeedback("", "");
-    description = "";
+    const nextBesoin = force ? "" : keptBesoin;
+    description = nextBesoin;
     plan = null;
     queue = [];
     queueIndex = 0;
@@ -1597,6 +1603,7 @@
     createdLead = null;
     lastResult = null;
     document.getElementById("devisForm").reset();
+    if (besoin) besoin.value = nextBesoin;
     const sendBtn = document.getElementById("btnSendPhoto");
     if (sendBtn) {
       sendBtn.disabled = false;
@@ -1620,8 +1627,16 @@
     setLandingMode("wait");
     direction = "back";
     clearTimeout(saveTimer);
-    show(1, { save: false });
-    clearDraft();
+    show(1);
+    if (besoin && nextBesoin) {
+      besoin.focus();
+      const end = besoin.value.length;
+      try {
+        besoin.setSelectionRange(end, end);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   document.getElementById("btnRestart").addEventListener("click", () => restartFromStart(false));

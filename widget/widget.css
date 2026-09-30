@@ -131,9 +131,12 @@ body.widget.is-booting .viewport {
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
+  text-align: right;
   cursor: pointer;
   padding: 2px 0 0;
 }
+
+.btn-restart[hidden] { display: none !important; }
 
 .btn-restart:hover,
 .btn-restart:focus-visible { color: var(--navy); }
