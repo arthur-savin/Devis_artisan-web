@@ -157,7 +157,10 @@ create table dv_ai_prestations (
   sort_order smallint not null default 1,
   label text not null,
   detail text,
-  amount_ht numeric(10,2) not null
+  amount_ht numeric(10,2) not null,
+  amount_min_ht numeric(10,2),
+  amount_max_ht numeric(10,2),
+  price_source text not null default 'artisan' check (price_source in ('artisan', 'ia'))
 );
 
 create table dv_ai_flags (
@@ -790,27 +793,27 @@ begin
     limit 1;
 
     update dv_ai_prestations
-    set amount_ht = v_amount
+    set
+      amount_ht = v_amount,
+      amount_min_ht = v_amount,
+      amount_max_ht = v_amount,
+      price_source = 'artisan'
     where estimate_id = v_estimate_id
       and label = v_label;
 
     if found then
-      if v_had_price then
-        v_delta := v_amount - coalesce(v_prev, 0);
-        update dv_ai_estimates
-        set
-          has_price = true,
-          price_min_ht = greatest(0, coalesce(price_min_ht, 0) + v_delta),
-          price_max_ht = greatest(0, coalesce(price_max_ht, 0) + v_delta)
-        where id = v_estimate_id;
-      else
-        select coalesce(sum(amount_ht), 0) into v_sum
-        from dv_ai_prestations
-        where estimate_id = v_estimate_id;
-        update dv_ai_estimates
-        set has_price = true, price_min_ht = v_sum, price_max_ht = v_sum
-        where id = v_estimate_id;
-      end if;
+      select
+        coalesce(sum(coalesce(amount_min_ht, amount_ht)), 0),
+        coalesce(sum(coalesce(amount_max_ht, amount_ht)), 0)
+      into v_sum, v_delta
+      from dv_ai_prestations
+      where estimate_id = v_estimate_id;
+      update dv_ai_estimates
+      set
+        has_price = v_delta > 0,
+        price_min_ht = v_sum,
+        price_max_ht = greatest(v_sum, v_delta)
+      where id = v_estimate_id;
     end if;
   end if;
 

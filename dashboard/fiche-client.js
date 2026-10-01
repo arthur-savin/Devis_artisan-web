@@ -194,6 +194,46 @@
     });
   }
 
+  const AI_ESTIMATE_TIP =
+    "Il s’agit d’une estimation de l’IA car aucun devis semblable n’a été trouvé. Merci de la confirmer.";
+
+  function isAiEstimate(p) {
+    return Boolean(p && p.priceSource === "ia");
+  }
+
+  function appendAiWarn(parent) {
+    const mark = document.createElement("span");
+    mark.className = "ai-warn";
+    mark.tabIndex = 0;
+    mark.title = AI_ESTIMATE_TIP;
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", AI_ESTIMATE_TIP);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 14");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M8 1.2 15.2 13.2H.8L8 1.2z");
+    svg.appendChild(path);
+    const tip = document.createElement("span");
+    tip.className = "ai-warn-tip";
+    tip.setAttribute("role", "tooltip");
+    tip.textContent = AI_ESTIMATE_TIP;
+    mark.appendChild(svg);
+    mark.appendChild(tip);
+    parent.appendChild(mark);
+  }
+
+  function lineAmountText(p) {
+    const amount = Number(p.amount) || 0;
+    const min = p.amountMin != null && p.amountMin !== "" ? Number(p.amountMin) : amount;
+    const max = p.amountMax != null && p.amountMax !== "" ? Number(p.amountMax) : amount;
+    if (isAiEstimate(p) && min > 0 && max > min) return money(min) + " — " + money(max);
+    if (amount > 0) return money(amount);
+    if (min > 0 && max > min) return money(min) + " — " + money(max);
+    if (min > 0) return money(min);
+    return "";
+  }
+
   function renderEstimate() {
     const empty = document.getElementById("aiEmpty");
     const content = document.getElementById("aiContent");
@@ -217,18 +257,26 @@
     }
     empty.hidden = true;
     content.hidden = false;
+    const lines = est.prestations || [];
     const hasPrice = est.hasPrice === true && (est.priceMin != null || est.priceMax != null);
+    const anyAi = lines.some(isAiEstimate);
     const priceEl = document.getElementById("aiPrice");
+    priceEl.hidden = false;
+    priceEl.replaceChildren();
     if (hasPrice) {
-      priceEl.hidden = false;
-      priceEl.innerHTML =
-        money(est.priceMin) +
-        " — " +
-        money(est.priceMax) +
-        "<small>estimation indicative, non contractuelle</small>";
+      const main = document.createElement("span");
+      main.className = "price-range-main";
+      main.appendChild(document.createTextNode(money(est.priceMin) + " — " + money(est.priceMax)));
+      if (anyAi) appendAiWarn(main);
+      priceEl.appendChild(main);
+      const caption = document.createElement("small");
+      caption.textContent = "estimation indicative, non contractuelle";
+      priceEl.appendChild(caption);
     } else {
-      priceEl.hidden = false;
-      priceEl.innerHTML = "Pas de tarif communiqué<small>aucune grille artisan utilisée</small>";
+      priceEl.appendChild(document.createTextNode("Pas de tarif communiqué"));
+      const caption = document.createElement("small");
+      caption.textContent = "aucune grille artisan utilisée";
+      priceEl.appendChild(caption);
     }
     const cx = COMPLEXITY[est.complexity] || COMPLEXITY.moyen;
     const chip = document.getElementById("aiComplexity");
@@ -245,8 +293,7 @@
       dots.appendChild(mark);
     }
     const ul = document.getElementById("aiPrestations");
-    ul.innerHTML = "";
-    const lines = est.prestations || [];
+    ul.replaceChildren();
     if (!lines.length) {
       const li = document.createElement("li");
       li.textContent = "Aucun détail de travaux n’a encore été listé pour ce dossier.";
@@ -267,11 +314,16 @@
         li.appendChild(wrap);
         const col = document.createElement("span");
         col.className = "amt-col";
-        if (est.hasPrice && Number(p.amount) > 0) {
+        const shown = lineAmountText(p);
+        if (shown) {
+          const row = document.createElement("span");
+          row.className = "amt-line";
           const amt = document.createElement("span");
           amt.className = "amt";
-          amt.textContent = money(p.amount);
-          col.appendChild(amt);
+          amt.textContent = shown;
+          row.appendChild(amt);
+          if (isAiEstimate(p)) appendAiWarn(row);
+          col.appendChild(row);
         }
         const edit = document.createElement("button");
         edit.type = "button";

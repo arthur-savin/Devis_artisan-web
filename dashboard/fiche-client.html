@@ -430,6 +430,55 @@
       font-family: var(--font-body);
     }
 
+    .price-range-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ai-warn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      cursor: help;
+      line-height: 0;
+    }
+
+    .ai-warn svg {
+      width: 14px;
+      height: 12px;
+      display: block;
+      fill: var(--gold);
+    }
+
+    .ai-warn-tip {
+      display: none;
+      position: absolute;
+      z-index: 30;
+      right: 0;
+      bottom: calc(100% + 8px);
+      width: 240px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #1c1408;
+      color: #F7F1E4;
+      border: 1px solid rgba(244, 196, 48, 0.55);
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1.35;
+      letter-spacing: 0;
+      text-align: left;
+      white-space: normal;
+    }
+
+    .ai-warn:hover .ai-warn-tip,
+    .ai-warn:focus .ai-warn-tip,
+    .ai-warn:focus-visible .ai-warn-tip {
+      display: block;
+    }
+
     .ai-meta {
       display: flex;
       flex-wrap: wrap;
@@ -497,6 +546,12 @@
       align-items: flex-end;
       gap: 4px;
       flex-shrink: 0;
+    }
+
+    .prestations .amt-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .prestations .amt {
@@ -1028,7 +1083,7 @@
     <section class="card card-ai" aria-labelledby="b4">
       <p class="kicker">Bloc 4 · Qualification IA</p>
       <h2 id="b4">Synthèse pour l’artisan</h2>
-      <p class="card-lead">Résumé du besoin, ce qui se voit sur les photos, points de vigilance. Un montant n’apparaît que si vous avez renseigné votre grille tarifaire — il reste indicatif et non contractuel.</p>
+      <p class="card-lead">Résumé du besoin, ce qui se voit sur les photos, points de vigilance. Un prix repris de vos devis ou de votre grille est indiqué tel quel. Sans devis semblable, l’IA propose une fourchette : le triangle signale qu’elle reste à confirmer.</p>
       <p class="empty-block" id="aiEmpty" hidden>Pas encore de synthèse IA pour cette demande. Elle se lance à la réception du dossier : actualisez dans quelques secondes, ou relancez.</p>
       <div id="aiContent">
         <p class="price-range" id="aiPrice">—</p>

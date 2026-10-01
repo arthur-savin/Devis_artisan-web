@@ -458,6 +458,18 @@
     return new Intl.NumberFormat("fr-FR").format(Math.round(Number(n))) + "\u00a0€";
   }
 
+  function predevisAmount(p, hasPrice) {
+    if (!hasPrice || !p) return "";
+    const amount = Number(p.amount);
+    const min = p.amountMin != null && p.amountMin !== "" ? Number(p.amountMin) : amount;
+    const max = p.amountMax != null && p.amountMax !== "" ? Number(p.amountMax) : amount;
+    if (p.priceSource === "ia" && min > 0 && max > min) {
+      return `<em>${money(min)} — ${money(max)}</em>`;
+    }
+    if (amount > 0) return `<em>${money(amount)}</em>`;
+    return "";
+  }
+
   function itemKind() {
     const item = currentItem();
     return item && String(item.kind || "").toLowerCase() === "video" ? "video" : "photo";
@@ -1386,10 +1398,7 @@
       const hasPrice = Boolean(estimate.hasPrice || (payload && payload.has_price));
       listEl.innerHTML = lines
         .map((p, i) => {
-          const amount =
-            hasPrice && p.amount != null && Number(p.amount) > 0
-              ? `<em>${money(p.amount)}</em>`
-              : "";
+          const amount = predevisAmount(p, hasPrice);
           return (
             `<li>` +
             `<span class="predevis-num">${i + 1}</span>` +

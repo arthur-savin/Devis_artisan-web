@@ -124,17 +124,16 @@ ${TONE}
 
 CONTEXTE
 - Seules les photos te sont transmises ; ne décris jamais le contenu des vidéos.
-- Le message peut contenir une grille tarifaire et/ou des prix déjà pratiqués par l'artisan. Ce sont tes SEULES sources de prix autorisées.
+- Le message peut contenir une grille tarifaire et/ou des prix déjà pratiqués par l'artisan. Ils priment dès qu'une tâche y correspond.
+- Pour une tâche sans équivalent, tu estimes toi-même une fourchette. La règle « Prix » du préambule ne s'applique pas à ce chiffrage.
 
 MISSION
 1. Synthèse artisan (besoin, observations, vigilance, reserves) et message client.
 2. Liste concrète de tout ce qui sera à réaliser, compréhensible par un particulier.
-3. Chiffrage, uniquement si une source de prix est fournie :
-   - Un prix déjà pratiqué prime sur la grille quand la tâche correspond au même service.
-   - Chaque montant doit découler d'une ligne de grille ou d'un prix pratiqué, éventuellement multiplié par une quantité visible ou déclarée. N'invente jamais de quantité : si elle est inconnue, utilise l'unité et signale-le dans reserves.
-   - Ligne sans équivalent : amount_ht = 0, et précise-le dans confidence_note.
-   - price_min_ht = somme des lignes chiffrées. price_max_ht = ce montant augmenté des aléas réalistes cités dans reserves, toujours sur la base de la grille. Si aucun aléa : price_max_ht = price_min_ht.
-4. Sans aucune source de prix : has_price = false, tous les montants à 0, mais la liste des travaux reste complète.
+3. Chiffrage de chaque tâche. Exception à la règle « Prix » du préambule : ici tu dois toujours proposer un montant. Tu ne laisses jamais une tâche à 0.
+   - Tâche couverte par un prix déjà pratiqué ou par une ligne de la grille : price_source = "artisan". amount_ht reprend ce prix, éventuellement multiplié par une quantité visible ou déclarée. N'invente jamais de quantité : si elle est inconnue, utilise l'unité et signale-le dans reserves. amount_min_ht = amount_max_ht = amount_ht.
+   - Tâche sans devis semblable et sans ligne de grille : estime toi-même une fourchette HT prudente, d'après le métier, ce qui se voit et les quantités connues. price_source = "ia". amount_min_ht et amount_max_ht encadrent cette estimation (environ 20 à 40 % d'écart si le dossier est lisible, plus large si les photos ou les quantités manquent). amount_ht = milieu de la tranche. Ne présente pas cette fourchette comme un prix déjà pratiqué par l'artisan.
+4. price_min_ht = somme des amount_min_ht. price_max_ht = somme des amount_max_ht. has_price = true dès qu'une ligne est supérieure à 0.
 
 SORTIE
 {
@@ -148,7 +147,7 @@ SORTIE
   "has_price": boolean,
   "price_min_ht": number,
   "price_max_ht": number,
-  "prestations": [ { "label": string, "detail": string, "amount_ht": number } ],
+  "prestations": [ { "label": string, "detail": string, "amount_ht": number, "amount_min_ht": number, "amount_max_ht": number, "price_source": "artisan" | "ia" } ],
   "disclaimer": string,
   "complexity": "simple" | "moyen" | "complexe",
   "confidence": "debutant" | "calibre" | "fiable",
@@ -161,10 +160,11 @@ Règles de champs
 - prestations : 3 à 8 lignes, dans l'ordre du chantier (accès et protection → dépose → fourniture et pose → contrôles → nettoyage et évacuation). Interdit : « divers », « forfait », « autres », « etc. ».
 - label : 4 à 70 caractères. detail : 40 à 180 caractères, geste + zone + matériau s'il se voit, sans jargon.
 - Montants HT en euros, nombres ≥ 0, sans symbole.
-- disclaimer : 1 à 2 phrases, vouvoiement, toujours présent. Si has_price = true, il mentionne « indicative », « non contractuelle » et le fait que le montant pourra évoluer après confirmation de l'artisan. Sinon, il rappelle que ce document n'est pas un devis et que l'artisan reste décisionnaire.
+- price_source : "artisan" seulement si la tâche correspond vraiment à un prix pratiqué ou à la grille. Sinon "ia".
+- disclaimer : 1 à 2 phrases, vouvoiement, toujours présent. Il mentionne « indicative », « non contractuelle » et le fait que le montant pourra évoluer après confirmation de l'artisan. S'il y a des lignes "ia", il précise qu'il s'agit d'une estimation à confirmer.
 - complexity : selon le nombre de corps d'état, l'accès et les incertitudes.
-- confidence : « fiable » uniquement si les photos sont nettes, couvrent le besoin et que tous les montants sont sourcés. « debutant » si les photos sont rares ou peu lisibles.
-- confidence_note : 1 à 2 phrases pour l'artisan qui expliquent le niveau de confiance et les lignes non chiffrées.`;
+- confidence : « fiable » uniquement si les photos sont nettes, couvrent le besoin et que toutes les lignes sont "artisan". « debutant » si les photos sont rares ou peu lisibles, ou si la plupart des lignes sont estimées sans devis semblable.
+- confidence_note : 1 à 2 phrases pour l'artisan qui expliquent le niveau de confiance et quelles tâches sont une estimation, faute de devis semblable.`;
 
 type PhotoItem = { id: string; kind: "photo" | "video"; label: string; hint: string };
 type ImagePart = { media_type: string; data: string };
@@ -190,7 +190,20 @@ type ReviewJson = {
   extra_photos: PhotoItem[];
 };
 
-type PrestationJson = { label: string; detail: string; amount_ht: number };
+type PrestationJson = {
+  label: string;
+  detail: string;
+  amount_ht: number;
+  amount_min_ht: number;
+  amount_max_ht: number;
+  price_source: "artisan" | "ia";
+};
+
+type PriceOptions = {
+  allowArtisan: boolean;
+  knownLabels: string[];
+  hasGrid: boolean;
+};
 
 type FinalizeJson = ReviewJson & {
   titre_predevis: string;
@@ -324,7 +337,77 @@ function asMoney(value: unknown) {
   return Math.round(n * 100) / 100;
 }
 
-function normalizeFinalize(raw: Record<string, unknown>, allowPrice: boolean): FinalizeJson {
+function significantTokens(value: string) {
+  return stripAccents(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((word) => word.length > 3);
+}
+
+function matchesKnownService(label: string, knownLabels: string[]) {
+  const left = significantTokens(label);
+  if (!left.length || !knownLabels.length) return false;
+  return knownLabels.some((known) => {
+    const right = significantTokens(known);
+    if (!right.length) return false;
+    const hits = left.filter((word) => right.includes(word));
+    return hits.length >= Math.min(2, left.length, right.length);
+  });
+}
+
+function lineSource(
+  rawSource: unknown,
+  label: string,
+  amountMin: number,
+  amountMax: number,
+  options: PriceOptions
+): "artisan" | "ia" {
+  if (!options.allowArtisan) return "ia";
+  const raw = stripAccents(String(rawSource || "")).toLowerCase().trim();
+  let source: "artisan" | "ia" | "" = raw === "ia" || raw === "artisan" ? raw : "";
+  if (!source) source = amountMax > amountMin * 1.05 ? "ia" : "artisan";
+  if (source === "artisan" && !options.hasGrid && !matchesKnownService(label, options.knownLabels)) {
+    return "ia";
+  }
+  return source;
+}
+
+function lineRange(source: "artisan" | "ia", amount: number, min: number, max: number) {
+  if (source === "artisan") {
+    const value = amount > 0 ? amount : min > 0 ? min : max;
+    return { amount_ht: value, amount_min_ht: value, amount_max_ht: value };
+  }
+  let lo = min;
+  let hi = max;
+  if (lo <= 0 && hi <= 0 && amount > 0) {
+    lo = Math.round(amount * 0.8);
+    hi = Math.round(amount * 1.25);
+  } else if (lo <= 0 && amount > 0) {
+    lo = amount;
+  } else if (hi <= 0 && amount > 0) {
+    hi = amount;
+  }
+  if (hi < lo) {
+    const swap = lo;
+    lo = hi;
+    hi = swap;
+  }
+  if (lo > 0 && hi > 0 && hi < lo * 1.08) {
+    lo = Math.round(lo * 0.85);
+    hi = Math.max(Math.round(hi * 1.15), lo);
+  }
+  const center = amount > 0 && amount >= lo && amount <= hi
+    ? amount
+    : Math.round(((lo + hi) / 2) * 100) / 100;
+  return {
+    amount_ht: asMoney(center),
+    amount_min_ht: asMoney(lo),
+    amount_max_ht: asMoney(hi),
+  };
+}
+
+function normalizeFinalize(raw: Record<string, unknown>, options: PriceOptions): FinalizeJson {
   const review = normalizeReview(raw);
   const complexityRaw = stripAccents(String(raw.complexity || "")).toLowerCase().trim();
   const complexity =
@@ -332,21 +415,32 @@ function normalizeFinalize(raw: Record<string, unknown>, allowPrice: boolean): F
       ? complexityRaw
       : "moyen";
   const confidenceRaw = stripAccents(String(raw.confidence || "")).toLowerCase().trim();
-  const confidence =
+  let confidence: "debutant" | "calibre" | "fiable" =
     confidenceRaw === "debutant" || confidenceRaw === "calibre" || confidenceRaw === "fiable"
       ? confidenceRaw
       : "calibre";
 
-  const requestedPrice = Boolean(raw.has_price) && allowPrice;
   let prestations = Array.isArray(raw.prestations)
     ? raw.prestations
         .map((row) => {
-          const item = row as { label?: unknown; detail?: unknown; amount_ht?: unknown };
+          const item = row as {
+            label?: unknown;
+            detail?: unknown;
+            amount_ht?: unknown;
+            amount_min_ht?: unknown;
+            amount_max_ht?: unknown;
+            price_source?: unknown;
+          };
           const label = clip(item.label, 80);
           const detail = clip(item.detail, 220);
-          const amount_ht = allowPrice ? asMoney(item.amount_ht) : 0;
           if (label.length < 4) return null;
-          return { label, detail, amount_ht };
+          const amount = asMoney(item.amount_ht);
+          const min = asMoney(item.amount_min_ht);
+          const max = asMoney(item.amount_max_ht);
+          const price_source = lineSource(item.price_source, label, min, max, options);
+          const range = lineRange(price_source, amount, min, max);
+          if (range.amount_max_ht <= 0) return null;
+          return { label, detail, price_source, ...range };
         })
         .filter((row): row is PrestationJson => Boolean(row))
         .slice(0, 8)
@@ -356,32 +450,25 @@ function normalizeFinalize(raw: Record<string, unknown>, allowPrice: boolean): F
   const shortDetail = prestations.find((row) => row.detail.length < 40 || row.detail.length > 180);
   if (shortDetail) throw new Error("longueur de detail hors 40 à 180 caractères");
 
-  let price_min_ht = allowPrice ? asMoney(raw.price_min_ht) : 0;
-  let price_max_ht = allowPrice ? asMoney(raw.price_max_ht) : 0;
-  const sumCents = prestations.reduce((sum, row) => sum + Math.round(row.amount_ht * 100), 0);
-  const sumHt = sumCents / 100;
-  let has_price = requestedPrice && sumHt > 0 && (price_min_ht > 0 || price_max_ht > 0);
-
-  if (!has_price) {
-    price_min_ht = 0;
-    price_max_ht = 0;
-    prestations = prestations.map((row) => ({ ...row, amount_ht: 0 }));
-  } else {
-    const minCents = Math.round(price_min_ht * 100);
-    const tolerance = Math.max(100, Math.round(sumCents * 0.02));
-    if (Math.abs(minCents - sumCents) > tolerance) {
-      throw new Error("price_min_ht éloigné de la somme des prestations");
-    }
-    if (price_max_ht < price_min_ht) price_max_ht = price_min_ht;
-  }
+  const price_min_ht = asMoney(
+    prestations.reduce((sum, row) => sum + row.amount_min_ht, 0)
+  );
+  let price_max_ht = asMoney(
+    prestations.reduce((sum, row) => sum + row.amount_max_ht, 0)
+  );
+  if (price_max_ht < price_min_ht) price_max_ht = price_min_ht;
+  const has_price = price_max_ht > 0;
+  if (!has_price) throw new Error("chiffrage vide");
+  const anyAi = prestations.some((row) => row.price_source === "ia");
+  if (anyAi && confidence === "fiable") confidence = "calibre";
 
   const titre_predevis =
     clip(raw.titre_predevis, 80) || clip(raw.intervention, 80) || "Votre intervention";
 
   const disclaimer = clip(raw.disclaimer, 400) ||
-    (has_price
-      ? "Ce prédevis est indicatif et non contractuel. Les montants pourront évoluer après confirmation de l’artisan."
-      : "Ce prédevis décrit les travaux envisagés. Il n’est pas un devis : l’artisan reste seul décisionnaire.");
+    (anyAi
+      ? "Ce prédevis est indicatif et non contractuel. Certaines lignes sont une estimation, faute de devis semblable : l’artisan les confirmera."
+      : "Ce prédevis est indicatif et non contractuel. Les montants pourront évoluer après confirmation de l’artisan.");
 
   return {
     ...review,
@@ -724,11 +811,25 @@ async function saveEstimate(
         sort_order: index + 1,
         label: row.label,
         detail: row.detail || "",
-        amount_ht: estimate.has_price ? row.amount_ht : 0,
+        amount_ht: row.amount_ht,
+        amount_min_ht: row.amount_min_ht,
+        amount_max_ht: row.amount_max_ht,
+        price_source: row.price_source,
       }));
-      const withDetail = await supabase.from("dv_ai_prestations").insert(rows);
-      if (withDetail.error) {
-        const fallback = await supabase.from("dv_ai_prestations").insert(
+      let saved = await supabase.from("dv_ai_prestations").insert(rows);
+      if (saved.error && /price_source|amount_min_ht|amount_max_ht/i.test(saved.error.message || "")) {
+        saved = await supabase.from("dv_ai_prestations").insert(
+          rows.map((row) => ({
+            estimate_id: row.estimate_id,
+            sort_order: row.sort_order,
+            label: row.label,
+            detail: row.detail,
+            amount_ht: row.amount_ht,
+          }))
+        );
+      }
+      if (saved.error && /detail/i.test(saved.error.message || "")) {
+        saved = await supabase.from("dv_ai_prestations").insert(
           rows.map((row) => ({
             estimate_id: row.estimate_id,
             sort_order: row.sort_order,
@@ -736,8 +837,8 @@ async function saveEstimate(
             amount_ht: row.amount_ht,
           }))
         );
-        if (fallback.error) throw fallback.error;
       }
+      if (saved.error) throw saved.error;
     }
 
     const flags = estimate.vigilance.map((message) => ({
@@ -978,12 +1079,12 @@ Deno.serve(async (req) => {
               decidedText
                 ? "Prix déjà pratiqués ou décidés par l’artisan pour un type de service — corrections et anciens devis (prioritaires si la tâche correspond) :\n" +
                   decidedText
-                : "",
-              "Ces éléments sont la seule base autorisée pour chiffrer. Jamais de barème marché.",
+                : "Aucun devis semblable en mémoire.",
+              "Quand une tâche correspond à une ligne ci-dessus : price_source = artisan et montant repris. Quand aucune ligne ne correspond : estime une fourchette et mets price_source = ia. Ne laisse aucune tâche à 0.",
             ]
               .filter(Boolean)
               .join("\n\n")
-          : "Grille tarifaire artisan : aucune. Aucun prix décidé par l’artisan. Interdiction absolue de donner un prix, une fourchette ou un barème. has_price = false.",
+          : "Grille tarifaire artisan : aucune. Aucun devis semblable en mémoire. Pour chaque tâche, estime une fourchette HT prudente et mets price_source = ia. has_price = true. Ne laisse aucune tâche à 0.",
       ].join("\n");
 
       const estimate = (await callClaude(
@@ -991,15 +1092,13 @@ Deno.serve(async (req) => {
         FINALIZE_PROMPT,
         dossier,
         images,
-        (raw) => normalizeFinalize(raw, allowPrice)
+        (raw) =>
+          normalizeFinalize(raw, {
+            allowArtisan: allowPrice,
+            knownLabels: decided.map((row) => row.label),
+            hasGrid: tarif.length > 8,
+          })
       )) as FinalizeJson;
-
-      if (!allowPrice) {
-        estimate.has_price = false;
-        estimate.price_min_ht = 0;
-        estimate.price_max_ht = 0;
-        estimate.prestations = estimate.prestations.map((row) => ({ ...row, amount_ht: 0 }));
-      }
 
       const estimateId = await saveEstimate(supabase, Number((lead as { id: number }).id), estimate);
       await supabase.from("dv_lead_events").insert({

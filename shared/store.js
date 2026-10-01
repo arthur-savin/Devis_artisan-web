@@ -234,25 +234,40 @@
     };
   }
 
+  function lineBounds(p) {
+    const amount = Number(p && p.amount) || 0;
+    const min = p && p.amountMin != null && p.amountMin !== "" ? Number(p.amountMin) : amount;
+    const max = p && p.amountMax != null && p.amountMax !== "" ? Number(p.amountMax) : amount;
+    return {
+      min: Number.isFinite(min) ? min : amount,
+      max: Number.isFinite(max) ? max : amount,
+    };
+  }
+
   function applyRecordedPrice(estimate, label, amount) {
     const base = estimate || { prestations: [], hasPrice: false, priceMin: null, priceMax: null };
     const prestations = (base.prestations || []).map((p) =>
-      p.label === label ? { ...p, amount } : { ...p }
+      p.label === label
+        ? { ...p, amount, amountMin: amount, amountMax: amount, priceSource: "artisan" }
+        : { ...p }
     );
     if (!prestations.some((p) => p.label === label)) {
-      prestations.push({ label, detail: "", amount });
+      prestations.push({
+        label,
+        detail: "",
+        amount,
+        amountMin: amount,
+        amountMax: amount,
+        priceSource: "artisan",
+      });
     }
-    if (!base.hasPrice) {
-      const sum = prestations.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-      return { ...base, hasPrice: true, priceMin: sum, priceMax: sum, prestations };
-    }
-    const prev = (base.prestations || []).find((p) => p.label === label);
-    const delta = amount - (prev ? Number(prev.amount) || 0 : 0);
+    const priceMin = prestations.reduce((sum, row) => sum + lineBounds(row).min, 0);
+    const priceMax = prestations.reduce((sum, row) => sum + lineBounds(row).max, 0);
     return {
       ...base,
-      hasPrice: true,
-      priceMin: Math.max(0, (Number(base.priceMin) || 0) + delta),
-      priceMax: Math.max(0, (Number(base.priceMax) || 0) + delta),
+      hasPrice: priceMax > 0,
+      priceMin: Math.round(priceMin * 100) / 100,
+      priceMax: Math.round(Math.max(priceMin, priceMax) * 100) / 100,
       prestations,
     };
   }
@@ -341,9 +356,9 @@
       ],
       estimate: {
         createdAt: daysAgo(0.18),
-        hasPrice: false,
-        priceMin: null,
-        priceMax: null,
+        hasPrice: true,
+        priceMin: 1680,
+        priceMax: 2460,
         complexity: "complexe",
         confidence: "calibre",
         confidenceNote:
@@ -351,7 +366,7 @@
         observations:
           "Installation d’origine (~ années 80). Absence probable de différentiel 30 mA. Les disjonctions répétées collent avec un tableau saturé et des départs cuisine sous-dimensionnés. Visite ou échange pour confirmer avant devis ferme.",
         clientSummary:
-          "Nous avons bien compris votre demande de mise aux normes, avec les photos du tableau et des pièces. L’artisan vous recontacte pour le devis. Aucun tarif n’est avancé ici.",
+          "Nous avons bien compris votre demande de mise aux normes, avec les photos du tableau et des pièces. Les montants sont une estimation indicative, à confirmer par l’artisan.",
         titrePredevis: "Mise aux normes du tableau électrique",
         disclaimer:
           "Ce prédevis décrit les travaux envisagés. Il n’est pas un devis : l’artisan reste seul décisionnaire.",
@@ -359,22 +374,34 @@
           {
             label: "Constat de l’installation",
             detail: "Lecture du tableau et des départs concernés, d’après vos photos, avant toute intervention.",
-            amount: 0,
+            amount: 180,
+            amountMin: 140,
+            amountMax: 220,
+            priceSource: "ia",
           },
           {
             label: "Mise aux normes du tableau",
             detail: "Remplacement des protections manquantes, notamment le différentiel 30 mA, et réorganisation des départs.",
-            amount: 0,
+            amount: 1450,
+            amountMin: 1180,
+            amountMax: 1720,
+            priceSource: "ia",
           },
           {
             label: "Essais et contrôles",
             detail: "Vérification du bon fonctionnement après travaux, y compris la terre si elle est accessible.",
-            amount: 0,
+            amount: 260,
+            amountMin: 210,
+            amountMax: 310,
+            priceSource: "ia",
           },
           {
             label: "Remise en état",
             detail: "Refermeture du tableau et nettoyage de la zone d’intervention.",
-            amount: 0,
+            amount: 160,
+            amountMin: 150,
+            amountMax: 210,
+            priceSource: "ia",
           },
         ],
         flags: [
@@ -483,11 +510,19 @@
     const prestations = (est.dv_ai_prestations || [])
       .slice()
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-      .map((p) => ({
-        label: p.label,
-        detail: p.detail || "",
-        amount: Number(p.amount_ht),
-      }));
+      .map((p) => {
+        const amount = Number(p.amount_ht) || 0;
+        const amountMin = p.amount_min_ht != null && p.amount_min_ht !== "" ? Number(p.amount_min_ht) : amount;
+        const amountMax = p.amount_max_ht != null && p.amount_max_ht !== "" ? Number(p.amount_max_ht) : amount;
+        return {
+          label: p.label,
+          detail: p.detail || "",
+          amount,
+          amountMin: Number.isFinite(amountMin) ? amountMin : amount,
+          amountMax: Number.isFinite(amountMax) ? amountMax : amount,
+          priceSource: p.price_source === "ia" ? "ia" : "artisan",
+        };
+      });
     const flags = (est.dv_ai_flags || []).map((f) => ({ kind: f.kind, message: f.message }));
     const hasPrice =
       est.has_price === true ||
@@ -1096,11 +1131,21 @@
           raw.disclaimer ||
           (data && data.disclaimer) ||
           "Ce prédevis est indicatif et non contractuel. L’artisan reste seul décisionnaire du devis.",
-        prestations: prestations.map((p) => ({
-          label: p.label,
-          detail: p.detail || "",
-          amount: Number(p.amount_ht != null ? p.amount_ht : p.amount) || 0,
-        })),
+        prestations: prestations.map((p) => {
+          const amount = Number(p.amount_ht != null ? p.amount_ht : p.amount) || 0;
+          const rawMin = p.amount_min_ht != null ? p.amount_min_ht : p.amountMin;
+          const rawMax = p.amount_max_ht != null ? p.amount_max_ht : p.amountMax;
+          const amountMin = rawMin != null && rawMin !== "" ? Number(rawMin) : amount;
+          const amountMax = rawMax != null && rawMax !== "" ? Number(rawMax) : amount;
+          return {
+            label: p.label,
+            detail: p.detail || "",
+            amount,
+            amountMin: Number.isFinite(amountMin) ? amountMin : amount,
+            amountMax: Number.isFinite(amountMax) ? amountMax : amount,
+            priceSource: p.price_source === "ia" || p.priceSource === "ia" ? "ia" : "artisan",
+          };
+        }),
         flags: flags.map((f) => ({ kind: f.kind || "recommandation", message: f.message || f })),
       },
     };
@@ -1395,7 +1440,13 @@
       est.hasPrice = false;
       est.priceMin = null;
       est.priceMax = null;
-      est.prestations = (est.prestations || []).map((p) => ({ ...p, amount: 0 }));
+      est.prestations = (est.prestations || []).map((p) => ({
+        ...p,
+        amount: 0,
+        amountMin: 0,
+        amountMax: 0,
+        priceSource: "artisan",
+      }));
     }
     return mapped;
   }
@@ -1495,8 +1546,10 @@
     get(id) {
       if (id == null || id === "") return null;
       const key = String(id);
+      const artisan = Store.currentArtisan();
+      const localOnly = artisan && artisan.dbId == null;
       const raw =
-        Store.backend === "supabase"
+        Store.backend === "supabase" && !localOnly
           ? cache.find((x) => x.id === key || String(x.dbId) === key)
           : readLocal().find((x) => x.id === key);
       return normalize(raw || null);

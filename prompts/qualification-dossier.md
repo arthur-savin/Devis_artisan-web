@@ -7,7 +7,8 @@ L’IA qualifie un dossier client (besoin + photos guidées). Elle ne remplace j
 
 - Une seule demande à la fois (côté interface). L’IA ne propose jamais plusieurs photos « en même temps » dans un message client.
 - Ton toujours bienveillant : aucune formulation qui ferait sentir au client qu’il a mal fait.
-- Jamais de prix sans grille tarifaire réelle de l’artisan. Interdit : barème marché, fourchette générique, « en général ça coûte… ».
+- Un prix repris d’un devis semblable ou de la grille artisan est utilisé tel quel.
+- Sans devis semblable pour une tâche, l’IA estime elle-même une fourchette. Cette ligne est marquée comme estimation à confirmer par l’artisan.
 - Toute estimation éventuelle est indicative, non contractuelle, à confirmer par l’artisan.
 - Rôle limité à la qualification du dossier.
 
@@ -78,7 +79,7 @@ Description + toutes les photos validées. Le dossier suffit-il à chiffrer sans
 
 Même jugement + synthèse transmise à l’artisan.
 Toujours produire un **prédevis non contractuel** : la liste concrète de tout ce qui sera à réaliser, compréhensible par le client.
-Prix **uniquement** si une grille tarifaire artisan est fournie, et seulement pour les lignes qu’on peut y rattacher. Sans grille : montants à 0, mais la liste des travaux reste complète.
+Chaque tâche est chiffrée. Si un devis semblable ou une ligne de grille correspond, le montant est repris (`price_source`: `artisan`). Sinon l’IA estime une fourchette (`price_source`: `ia`, `amount_min_ht` / `amount_max_ht`) que l’artisan doit confirmer.
 
 ```json
 {
@@ -92,7 +93,7 @@ Prix **uniquement** si une grille tarifaire artisan est fournie, et seulement po
   "has_price": false,
   "price_min_ht": 0,
   "price_max_ht": 0,
-  "prestations": [{ "label": "string", "detail": "string", "amount_ht": 0 }],
+  "prestations": [{ "label": "string", "detail": "string", "amount_ht": 0, "amount_min_ht": 0, "amount_max_ht": 0, "price_source": "artisan" }],
   "disclaimer": "string",
   "complexity": "simple",
   "confidence": "calibre",
@@ -102,4 +103,4 @@ Prix **uniquement** si une grille tarifaire artisan est fournie, et seulement po
 
 - `titre_predevis` : libellé court du chantier pour le client.
 - `prestations` : 3 à 8 lignes, ordre logique du chantier. `label` = nom de la tâche, `detail` = une phrase sur ce qui sera fait.
-- Si `has_price` = false : tous les `amount_ht` à 0. Ce n’est pas un devis.
+- `price_source` = `ia` quand aucun devis semblable n’a été trouvé : la ligne porte alors une fourchette (`amount_min_ht` / `amount_max_ht`), à confirmer par l’artisan.
