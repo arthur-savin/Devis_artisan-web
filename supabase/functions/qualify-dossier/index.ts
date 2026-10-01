@@ -134,6 +134,17 @@ MISSION
    - Tâche couverte par un prix déjà pratiqué ou par une ligne de la grille : price_source = "artisan". amount_ht reprend ce prix, éventuellement multiplié par une quantité visible ou déclarée. N'invente jamais de quantité : si elle est inconnue, utilise l'unité et signale-le dans reserves. amount_min_ht = amount_max_ht = amount_ht.
    - Tâche sans devis semblable et sans ligne de grille : estime toi-même une fourchette HT prudente, d'après le métier, ce qui se voit et les quantités connues. price_source = "ia". amount_min_ht et amount_max_ht encadrent cette estimation (environ 20 à 40 % d'écart si le dossier est lisible, plus large si les photos ou les quantités manquent). amount_ht = milieu de la tranche. Ne présente pas cette fourchette comme un prix déjà pratiqué par l'artisan.
 4. price_min_ht = somme des amount_min_ht. price_max_ht = somme des amount_max_ht. has_price = true dès qu'une ligne est supérieure à 0.
+5. Relevé photo, objet releve, pour les champs du formulaire artisan que le client a laissés vides. Uniquement ce qui se VOIT sur les photos. N'invente pas une surface, un nombre de circuits, une urgence ou un accès que l'image ne montre pas.
+   - Chaîne vide si tu n'as rien à dire.
+   - Sinon une réponse courte de formulaire, 8 à 160 caractères.
+   - Si l'élément n'est sur aucune photo : « Non visible sur les photos ».
+   - surface : une mesure seulement si elle est lisible (mètre, cote). Sinon « Non mesurable sur les photos » ou ce que la pièce laisse voir sans chiffre inventé.
+   - pieces : la pièce ou la zone reconnaissable.
+   - tableau, terre, circuits : ce qui se voit (fils, différentiel, nombre de départs) ou « Non visible sur les photos ».
+   - acces : hauteur, encombrement ou passage visibles.
+   - anciennete : époque de l'appareillage si elle se reconnaît.
+   - urgence : seulement si un danger se voit. Sinon chaîne vide.
+   - projet : un autre chantier visible (cuisine, peinture, saignées). Sinon chaîne vide.
 
 SORTIE
 {
@@ -151,7 +162,18 @@ SORTIE
   "disclaimer": string,
   "complexity": "simple" | "moyen" | "complexe",
   "confidence": "debutant" | "calibre" | "fiable",
-  "confidence_note": string
+  "confidence_note": string,
+  "releve": {
+    "surface": string,
+    "anciennete": string,
+    "urgence": string,
+    "tableau": string,
+    "acces": string,
+    "terre": string,
+    "circuits": string,
+    "pieces": string,
+    "projet": string
+  }
 }
 
 Règles de champs
@@ -205,6 +227,18 @@ type PriceOptions = {
   hasGrid: boolean;
 };
 
+type PhotoReleve = {
+  surface: string;
+  anciennete: string;
+  urgence: string;
+  tableau: string;
+  acces: string;
+  terre: string;
+  circuits: string;
+  pieces: string;
+  projet: string;
+};
+
 type FinalizeJson = ReviewJson & {
   titre_predevis: string;
   has_price: boolean;
@@ -215,6 +249,7 @@ type FinalizeJson = ReviewJson & {
   complexity: "simple" | "moyen" | "complexe";
   confidence: "debutant" | "calibre" | "fiable";
   confidence_note: string;
+  releve: PhotoReleve;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -328,6 +363,26 @@ function normalizeReview(raw: Record<string, unknown>): ReviewJson {
     vigilance,
     reserves: clip(raw.reserves, 500),
     extra_photos: [],
+  };
+}
+
+function normalizeReleve(raw: unknown): PhotoReleve {
+  const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const text = (key: string) => {
+    const value = clip(row[key], 180);
+    if (!value || /^(null|n\/a|undefined|inconnu)$/i.test(value)) return "";
+    return value;
+  };
+  return {
+    surface: text("surface"),
+    anciennete: text("anciennete"),
+    urgence: text("urgence"),
+    tableau: text("tableau"),
+    acces: text("acces"),
+    terre: text("terre"),
+    circuits: text("circuits"),
+    pieces: text("pieces"),
+    projet: text("projet"),
   };
 }
 
@@ -481,6 +536,7 @@ function normalizeFinalize(raw: Record<string, unknown>, options: PriceOptions):
     complexity,
     confidence,
     confidence_note: clip(raw.confidence_note, 400),
+    releve: normalizeReleve(raw.releve),
   };
 }
 
@@ -866,6 +922,36 @@ async function saveEstimate(
   return inserted.id;
 }
 
+async function savePhotoReleve(
+  supabase: ReturnType<typeof createClient>,
+  leadId: number,
+  releve: PhotoReleve
+) {
+  const filled = Object.values(releve).some((value) => value.length > 0);
+  if (!filled) return;
+  const { data: lead } = await supabase
+    .from("dv_leads")
+    .select("surface_m2, anciennete, urgence, tableau_existant, acces_logement, mise_a_terre, circuits_estimes, pieces_concernees, projet_associe")
+    .eq("id", leadId)
+    .maybeSingle();
+  const current = (lead || {}) as Record<string, unknown>;
+  const empty = (value: unknown) => value == null || String(value).trim() === "";
+  const kept: PhotoReleve = {
+    surface: empty(current.surface_m2) ? releve.surface : "",
+    anciennete: empty(current.anciennete) ? releve.anciennete : "",
+    urgence: empty(current.urgence) ? releve.urgence : "",
+    tableau: empty(current.tableau_existant) ? releve.tableau : "",
+    acces: empty(current.acces_logement) ? releve.acces : "",
+    terre: empty(current.mise_a_terre) ? releve.terre : "",
+    circuits: empty(current.circuits_estimes) ? releve.circuits : "",
+    pieces: empty(current.pieces_concernees) ? releve.pieces : "",
+    projet: empty(current.projet_associe) ? releve.projet : "",
+  };
+  if (!Object.values(kept).some((value) => value.length > 0)) return;
+  const saved = await supabase.from("dv_leads").update({ releve_ia: kept }).eq("id", leadId);
+  if (saved.error) console.warn("releve photo non enregistré", saved.error.message);
+}
+
 async function lookupArtisanMetier(
   supabase: ReturnType<typeof createClient>,
   artisanRef: string
@@ -1070,6 +1156,7 @@ Deno.serve(async (req) => {
         "Photos jointes : " + (photoNotes.join(" · ") || "aucune"),
         "Vidéos (non transmises, à visionner par l’artisan) : " + (videoNotes.join(" · ") || "aucune"),
         "Ne décris jamais le contenu des vidéos.",
+        "Pour releve : décris seulement ce que les photos montrent. Chaîne vide ou « Non visible sur les photos » si l’élément n’y est pas.",
         "",
         allowPrice
           ? [
@@ -1101,6 +1188,7 @@ Deno.serve(async (req) => {
       )) as FinalizeJson;
 
       const estimateId = await saveEstimate(supabase, Number((lead as { id: number }).id), estimate);
+      await savePhotoReleve(supabase, Number((lead as { id: number }).id), estimate.releve);
       await supabase.from("dv_lead_events").insert({
         lead_id: (lead as { id: number }).id,
         kind: "analyse_ia",

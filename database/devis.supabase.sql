@@ -83,6 +83,7 @@ create table dv_leads (
   circuits_estimes text,
   pieces_concernees text,
   projet_associe text,
+  releve_ia jsonb,
 
   -- NULL = visible dans le tableau ; horodatage = retirée de l’UI, données conservées pour l’IA
   hidden_at timestamptz,

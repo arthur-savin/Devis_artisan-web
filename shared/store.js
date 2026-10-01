@@ -593,6 +593,7 @@
       circuits: row.circuits_estimes || "",
       pieces: row.pieces_concernees || "",
       projet: row.projet_associe || "",
+      releveIa: row.releve_ia && typeof row.releve_ia === "object" ? row.releve_ia : {},
       estimate: mapEstimate(row),
       events,
       hiddenAt: row.hidden_at ? Date.parse(row.hidden_at) : null,

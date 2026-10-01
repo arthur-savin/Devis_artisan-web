@@ -104,3 +104,4 @@ Chaque tâche est chiffrée. Si un devis semblable ou une ligne de grille corres
 - `titre_predevis` : libellé court du chantier pour le client.
 - `prestations` : 3 à 8 lignes, ordre logique du chantier. `label` = nom de la tâche, `detail` = une phrase sur ce qui sera fait.
 - `price_source` = `ia` quand aucun devis semblable n’a été trouvé : la ligne porte alors une fourchette (`amount_min_ht` / `amount_max_ht`), à confirmer par l’artisan.
+- `releve` : champs du formulaire laissés vides par le client, complétés seulement avec ce qui se voit sur les photos. « Non visible sur les photos » si l’élément n’y est pas. La saisie du client n’est jamais écrasée.

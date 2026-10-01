@@ -65,6 +65,26 @@
     if (el) el.textContent = value == null || value === "" ? "—" : String(value);
   }
 
+  function formField(id, clientValue, photoValue) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.replaceChildren();
+    const fromClient = clientValue != null && String(clientValue).trim() !== "";
+    const fromPhoto = !fromClient && photoValue != null && String(photoValue).trim() !== "";
+    if (!fromClient && !fromPhoto) {
+      el.textContent = "—";
+      return;
+    }
+    el.appendChild(document.createTextNode(fromClient ? String(clientValue) : String(photoValue)));
+    if (fromPhoto) {
+      el.appendChild(document.createElement("br"));
+      const note = document.createElement("small");
+      note.className = "from-photo";
+      note.textContent = "vu sur les photos";
+      el.appendChild(note);
+    }
+  }
+
   function money(n) {
     if (n == null || Number.isNaN(Number(n))) return "—";
     return new Intl.NumberFormat("fr-FR").format(Number(n)) + "\u00a0€";
@@ -370,16 +390,17 @@
     text("clientSource", SOURCE[item.source] || item.source || "—");
     text("clientWhen", fmtDate(item.createdAt, true));
     text("clientElapsed", elapsed(item.createdAt));
+    const photo = item.releveIa || {};
     text("formTravaux", travaux);
-    text("formSurface", item.surface ? item.surface + " m²" : "—");
-    text("formAnciennete", item.anciennete);
-    text("formUrgence", item.urgence);
-    text("formTableau", item.tableau);
-    text("formAcces", item.acces);
-    text("formTerre", item.miseATerre);
-    text("formCircuits", item.circuits);
-    text("formPieces", item.pieces);
-    text("formProjet", item.projet);
+    formField("formSurface", item.surface ? item.surface + " m²" : "", photo.surface);
+    formField("formAnciennete", item.anciennete, photo.anciennete);
+    formField("formUrgence", item.urgence, photo.urgence);
+    formField("formTableau", item.tableau, photo.tableau);
+    formField("formAcces", item.acces, photo.acces);
+    formField("formTerre", item.miseATerre, photo.terre);
+    formField("formCircuits", item.circuits, photo.circuits);
+    formField("formPieces", item.pieces, photo.pieces);
+    formField("formProjet", item.projet, photo.projet);
     text("formDetails", item.details);
     document.getElementById("notes").value = item.notesInternes || "";
     document.getElementById("rappel").value = item.rappelAt || "";
