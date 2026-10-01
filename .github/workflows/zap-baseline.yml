@@ -1,0 +1,27 @@
+# Scan passif OWASP ZAP (image officielle ghcr.io/zaproxy/zaproxy).
+# Cible fixe : le site GitHub Pages de ce dépôt. Pas de scan actif.
+name: ZAP Baseline Scan
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Scan passif
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: "https://arthur-savin.github.io/Devis_artisan-web/"
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-baseline-report
