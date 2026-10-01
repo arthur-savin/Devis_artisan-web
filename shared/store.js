@@ -640,13 +640,30 @@
   }
 
   function dataUrlToBlob(dataUrl) {
-    const parts = String(dataUrl || "").split(",");
-    if (parts.length < 2) return null;
-    const mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
-    const binary = atob(parts[1]);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes], { type: mime });
+    try {
+      const raw = String(dataUrl || "");
+      if (!raw.startsWith("data:")) return null;
+      const parts = raw.split(",");
+      if (parts.length < 2) return null;
+      const mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
+      const binary = atob(parts[1].replace(/\s/g, ""));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    } catch {
+      return null;
+    }
+  }
+
+  function blobFromPhoto(photo) {
+    const kind = mediaKind(photo);
+    if (kind !== "video" && photo && photo.dataUrl) {
+      const fromData = dataUrlToBlob(photo.dataUrl);
+      if (fromData) return fromData;
+    }
+    if (photo && photo.file instanceof Blob) return photo.file;
+    if (photo && photo.dataUrl) return dataUrlToBlob(photo.dataUrl);
+    return null;
   }
 
   let client = null;
@@ -740,45 +757,60 @@
     if (!photos || !photos.length) return;
     const prefix = (opts && opts.prefix) || "";
     const orderBase = Number(opts && opts.orderBase) || 1;
+    const failures = [];
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
       const kind = mediaKind(photo);
-      let blob =
-        kind !== "video" && photo.dataUrl
-          ? dataUrlToBlob(photo.dataUrl)
-          : photo.file instanceof Blob
-            ? photo.file
-            : photo.dataUrl
-              ? dataUrlToBlob(photo.dataUrl)
-              : null;
-      if (!blob) continue;
+      const label = photo.title || photo.name || (kind === "video" ? "Vidéo " : "Photo ") + (i + 1);
+      let blob = blobFromPhoto(photo);
+      if (!blob) {
+        failures.push(label);
+        continue;
+      }
       if (kind !== "video") blob = await shrinkImageBlob(blob);
       const fallbackName = kind === "video" ? "video.mp4" : "photo.jpg";
       const safeName = (photo.name || fallbackName).replace(/[^\w.\-]+/g, "_");
-      const path = lead.public_id + "/" + prefix + (orderBase + i) + "-" + safeName;
+      const path =
+        lead.public_id + "/" + prefix + (orderBase + i) + "-" + Date.now().toString(36) + "-" + safeName;
       const { error: upErr } = await client.storage.from(BUCKET).upload(path, blob, {
         contentType: blob.type || (kind === "video" ? "video/mp4" : "image/jpeg"),
-        upsert: true,
+        upsert: false,
       });
       if (upErr) {
         console.warn((kind === "video" ? "Vidéo" : "Photo") + " non envoyée :", upErr.message);
+        failures.push(label);
         continue;
       }
       const row = {
         lead_id: lead.id,
         sort_order: orderBase + i,
         kind,
-        titre: photo.title || photo.name || (kind === "video" ? "Vidéo " + (i + 1) : "Photo " + (i + 1)),
+        titre: photo.title || photo.name || label,
         filename: safeName,
         mime_type: blob.type || null,
         size_bytes: blob.size,
         storage_path: path,
       };
-      const inserted = await client.from("dv_photos").insert(row);
+      let inserted = await client.from("dv_photos").insert(row);
       if (inserted.error && /kind/i.test(inserted.error.message || "")) {
         delete row.kind;
-        await client.from("dv_photos").insert(row);
+        inserted = await client.from("dv_photos").insert(row);
       }
+      if (inserted.error) {
+        console.warn("Fiche photo non enregistrée :", inserted.error.message);
+        failures.push(label);
+      }
+    }
+    if (failures.length) {
+      const noun = failures.length > 1 ? "médias n’ont pas pu être enregistrés" : "média n’a pas pu être enregistré";
+      throw new Error(
+        failures.length +
+          " " +
+          noun +
+          " (" +
+          failures.join(", ") +
+          "). Réessayez dans un instant."
+      );
     }
   }
 
@@ -1559,8 +1591,12 @@
       if (!item || Store.backend !== "supabase" || !client) return item;
       for (const photo of item.photos || []) {
         if (photo.dataUrl || photo.placeholder || !photo.path) continue;
-        const { data } = await client.storage.from(BUCKET).createSignedUrl(photo.path, 3600);
-        photo.dataUrl = (data && data.signedUrl) || "";
+        const signed = await client.storage.from(BUCKET).createSignedUrl(photo.path, 3600);
+        if (signed.error) {
+          console.warn("Photo illisible dans le dossier :", signed.error.message);
+          continue;
+        }
+        photo.dataUrl = (signed.data && signed.data.signedUrl) || "";
       }
       return item;
     },
@@ -1649,13 +1685,20 @@
       const lead = Array.isArray(submitted) ? submitted[0] : submitted;
       if (!lead || !lead.id) throw new Error("Supabase n’a pas renvoyé la demande créée.");
 
-      await uploadPhotos(lead, photos);
+      let photoWarning = "";
+      try {
+        await uploadPhotos(lead, photos);
+      } catch (err) {
+        photoWarning = err.message || "Les photos n’ont pas pu être enregistrées.";
+        lastError = photoWarning;
+      }
 
       const mapped = mapLead({
         ...lead,
         dv_lead_travaux: travaux.map((t) => ({ travaux: t })),
         dv_photos: [],
       });
+      if (photoWarning) mapped.photoWarning = photoWarning;
       cache = [mapped, ...cache.filter((x) => x.id !== mapped.id)];
       emit();
       return mapped;

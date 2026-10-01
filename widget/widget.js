@@ -1471,8 +1471,8 @@
       title: c.item.label || (c.kind === "video" ? "Vidéo " : "Photo ") + (i + 1),
       dataUrl: c.kind === "video" ? "" : c.dataUrl,
       kind: c.kind === "video" ? "video" : "photo",
-      size: c.kind === "video" ? c.file && c.file.size : undefined,
-      file: c.kind === "video" ? c.file : null,
+      size: (c.file && c.file.size) || undefined,
+      file: c.file || null,
     }));
     const payload = {
       artisanRef: artisanRef || (artisan && artisan.id) || "",
@@ -1486,6 +1486,9 @@
       photos,
     };
     createdLead = await window.DevisStore.create(payload);
+    if (createdLead && createdLead.photoWarning) {
+      throw new Error(createdLead.photoWarning);
+    }
     let finalized = lastResult;
     try {
       finalized = await window.DevisStore.qualify("finalize", {
