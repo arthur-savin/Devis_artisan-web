@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Grille tarifaire</title>
+  <title>Former l’IA</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -24,10 +24,9 @@
       </div>
       <nav class="nav-side">
         <a href="index.html">Demandes</a>
-        <a class="is-on" href="tarifs.html">Grille tarifaire</a>
+        <a class="is-on" href="tarifs.html">Former l’IA</a>
         <a id="linkPage" href="../page/index.html">Ma page</a>
         <a id="linkWidget" href="../widget/index.html">Voir le widget</a>
-        <a href="calibrage.html">Ajouter des devis</a>
       </nav>
       <div class="side-foot">
         <a href="index.html">← Retour aux demandes</a>
@@ -37,17 +36,63 @@
 
     <div class="main">
       <header class="top">
-        <h1>Grille tarifaire</h1>
+        <h1>Former l’IA</h1>
+        <p class="calib-count" id="priceCount">0 prix en mémoire</p>
       </header>
-      <div class="content tarif-wrap">
+      <div class="content ia-page">
+        <p class="ia-intro">Donnez à l’IA vos vrais prix, pour qu’elle estime comme vous. Deux façons : coller votre grille, ou déposer d’anciens devis qu’elle lit elle-même. Le barème indicatif ne comble un trou que si vous l’autorisez, et jamais à la place d’un prix que vous avez déjà pratiqué.</p>
+
         <section class="panel tarif-panel">
-          <p class="tarif-lead">Collez ici vos vrais tarifs (HT, unité, forfaits). L’IA ne donnera une estimation au client <strong>que</strong> si cette grille est renseignée — jamais un prix « du marché ».</p>
+          <h2>Grille tarifaire</h2>
+          <p class="tarif-lead">Ces prix passent avant tout barème. Le barème indicatif ne sert qu’en dernier recours, et seulement si vous l’autorisez.</p>
           <label class="lab" for="tarifGrid">Votre grille</label>
-          <textarea id="tarifGrid" rows="16" placeholder="Ex.&#10;Déplacement / 1 h de dépannage : 120 € HT&#10;Point lumineux posé : 90 € HT&#10;Remplacement tableau 13 modules : 850 € HT&#10;Gouttière zinc au ml : 65 € HT"></textarea>
-          <p class="tarif-help">Une ligne par prestation, avec un montant. Plus c’est précis, plus l’estimation pourra s’en rapprocher. Sans grille, le client reçoit une synthèse mais aucun chiffre.</p>
+          <textarea id="tarifGrid" rows="12" placeholder="Ex.&#10;Déplacement / 1 h de dépannage : 120 € HT&#10;Point lumineux posé : 90 € HT&#10;Remplacement tableau 13 modules : 850 € HT&#10;Gouttière zinc au ml : 65 € HT"></textarea>
+          <p class="tarif-help">Une ligne par prestation, avec un montant.</p>
+          <label class="lab" for="baremeIndicatif">Barème indicatif, dernier recours</label>
+          <textarea id="baremeIndicatif" class="tarif-bareme" rows="8" placeholder="Ex.&#10;Prise posée : 80–140 € HT&#10;Majoration étage sans ascenseur : +15 %"></textarea>
+          <label class="tarif-check" for="baremeAutorise">
+            <input id="baremeAutorise" type="checkbox" />
+            <span>Autoriser ce barème quand une ligne n’a pas d’équivalent dans vos prix</span>
+          </label>
+          <p class="tarif-help">Électricien, case cochée et zone vide : un barème indicatif électricité est utilisé (série NF C 15-100 d’août 2024). Autre métier : sans texte de votre part, aucun prix de marché n’est inventé.</p>
           <p class="error" id="tarifError" hidden></p>
           <p class="ok-msg" id="tarifOk" hidden>Grille enregistrée.</p>
-          <button type="button" class="btn btn-gold" id="saveTarif">Enregistrer la grille</button>
+          <button type="button" class="btn btn-gold" id="saveTarif">Enregistrer</button>
+        </section>
+
+        <section class="panel calib-panel">
+          <h2>Anciens devis</h2>
+          <p class="tarif-lead">Déposez d’anciens devis, en PDF ou en photo. L’IA les lit, retient chaque prestation et son prix, puis les enregistre dans la même mémoire que les prix que vous corrigez après une estimation.</p>
+          <p class="calib-note" id="localNote" hidden>Vous n’êtes pas connecté au compte cloud. Les fichiers restent dans ce navigateur, sans lecture IA.</p>
+          <p class="error" id="calibError" hidden></p>
+          <p class="ok-msg" id="calibOk" hidden></p>
+
+          <label class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/gif,.pdf,.jpg,.jpeg,.png,.webp,.gif" multiple />
+            <strong>Déposer des devis</strong>
+            <span>PDF ou image · plusieurs fichiers possibles · 8 Mo maximum</span>
+          </label>
+          <p class="tarif-help" id="busyNote" hidden>Lecture en cours…</p>
+
+          <h2>Devis déposés</h2>
+          <div class="doc-list" id="docList"></div>
+
+          <h2>Prix enregistrés</h2>
+          <p class="tarif-help">Corrections après l’IA et lignes extraites des devis déposés. Chaque ligne sert de repère pour les prochains chiffrages.</p>
+          <div class="price-scroll">
+            <table class="price-table">
+              <thead>
+                <tr>
+                  <th>Prestation</th>
+                  <th>Prix HT</th>
+                  <th>Origine</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="priceBody"></tbody>
+            </table>
+          </div>
+          <p class="empty-prices" id="priceEmpty" hidden>Aucun prix en mémoire. Déposez un devis, ou corrigez un montant dans une demande.</p>
         </section>
       </div>
     </div>
@@ -56,5 +101,6 @@
   <script src="../shared/supabase-config.js"></script>
   <script src="../shared/store.js"></script>
   <script src="tarifs.js"></script>
+  <script src="calibrage.js"></script>
 </body>
 </html>

@@ -16,10 +16,13 @@
     document.getElementById("brandMetier").textContent = artisan.ville
       ? artisan.metier + " · " + artisan.ville
       : artisan.metier;
-    const q = store.artisanQuery(artisan);
-    document.getElementById("linkPage").href = "../page/index.html" + q;
-    document.getElementById("linkWidget").href = "../widget/index.html" + q;
-    document.title = artisan.displayName + " — Ajouter des devis";
+    const merged = Boolean(document.getElementById("tarifGrid"));
+    if (!merged) {
+      const q = store.artisanQuery(artisan);
+      document.getElementById("linkPage").href = "../page/index.html" + q;
+      document.getElementById("linkWidget").href = "../widget/index.html" + q;
+      document.title = artisan.displayName + " — Former l’IA";
+    }
   }
 
   const dropzone = document.getElementById("dropzone");
@@ -201,10 +204,12 @@
     }
   }
 
-  document.getElementById("logout").addEventListener("click", async () => {
-    await store.logout();
-    window.location.href = "./index.html";
-  });
+  if (!document.getElementById("tarifGrid")) {
+    document.getElementById("logout").addEventListener("click", async () => {
+      await store.logout();
+      window.location.href = "./index.html";
+    });
+  }
 
   fileInput.addEventListener("change", () => ingest(fileInput.files));
 

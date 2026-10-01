@@ -15,7 +15,10 @@
   const QUOTE_BUCKET = "devis-archives";
   const MAX_QUOTE_BYTES = 8 * 1024 * 1024;
   const MAX_PHOTOS = 5;
-  const MAX_VIDEOS = 5;
+  const MAX_VIDEOS = 2;
+  const IMAGE_MAX_EDGE = 1568;
+  const CLIENT_SUMMARY_FALLBACK =
+    "Votre demande a bien été analysée, l'artisan reviendra vers vous.";
   const METIERS = [
     "Électricité",
     "Plomberie",
@@ -92,6 +95,8 @@
         bio: row.bio || "",
         tarifGrid: row.tarifGrid || "",
         hasTarif: Boolean(row.hasTarif) || Boolean(String(row.tarifGrid || "").trim()),
+        baremeIndicatif: row.baremeIndicatif || "",
+        baremeAutorise: Boolean(row.baremeAutorise),
         email: String(row.email || "").toLowerCase(),
         passHash: row.passHash || "",
         createdAt: row.createdAt || Date.now(),
@@ -108,6 +113,8 @@
       bio: row.bio || "",
       tarifGrid: row.tarif_grid || "",
       hasTarif: Boolean(row.has_tarif) || Boolean(String(row.tarif_grid || "").trim()),
+      baremeIndicatif: row.bareme_indicatif || "",
+      baremeAutorise: Boolean(row.bareme_autorise),
       email: String(row.email || "").toLowerCase(),
       createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
     };
@@ -289,6 +296,8 @@
     bio: "Électricité pour particuliers — devis sous 24 h, sans engagement.",
     tarifGrid: "",
     hasTarif: false,
+    baremeIndicatif: "",
+    baremeAutorise: false,
     email: "vous@atelier.fr",
     passHash: "",
     createdAt: Date.parse("2026-03-01T09:00:00Z"),
@@ -492,7 +501,7 @@
       confidence: est.confidence,
       confidenceNote: est.confidence_note || "",
       observations: est.observations || "",
-      clientSummary: est.client_summary || est.observations || "",
+      clientSummary: String(est.client_summary || "").trim() || CLIENT_SUMMARY_FALLBACK,
       sufficient: est.dossier_suffisant !== false,
       disclaimer:
         est.disclaimer ||
@@ -654,6 +663,44 @@
     return cache;
   }
 
+  function shrinkImageBlob(blob) {
+    return new Promise((resolve) => {
+      const type = String((blob && blob.type) || "");
+      if (!blob || !type.startsWith("image/") || type === "image/gif") {
+        resolve(blob);
+        return;
+      }
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const edge = Math.max(img.width, img.height) || 1;
+        if (edge <= IMAGE_MAX_EDGE && blob.size <= 1_500_000 && type === "image/jpeg") {
+          URL.revokeObjectURL(url);
+          resolve(blob);
+          return;
+        }
+        const scale = Math.min(1, IMAGE_MAX_EDGE / edge);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          resolve(blob);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((out) => resolve(out || blob), "image/jpeg", 0.82);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(blob);
+      };
+      img.src = url;
+    });
+  }
+
   async function uploadPhotos(lead, photos, opts) {
     if (!photos || !photos.length) return;
     const prefix = (opts && opts.prefix) || "";
@@ -661,13 +708,16 @@
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
       const kind = mediaKind(photo);
-      const blob =
-        photo.file instanceof Blob
-          ? photo.file
-          : photo.dataUrl
-            ? dataUrlToBlob(photo.dataUrl)
-            : null;
+      let blob =
+        kind !== "video" && photo.dataUrl
+          ? dataUrlToBlob(photo.dataUrl)
+          : photo.file instanceof Blob
+            ? photo.file
+            : photo.dataUrl
+              ? dataUrlToBlob(photo.dataUrl)
+              : null;
       if (!blob) continue;
+      if (kind !== "video") blob = await shrinkImageBlob(blob);
       const fallbackName = kind === "video" ? "video.mp4" : "photo.jpg";
       const safeName = (photo.name || fallbackName).replace(/[^\w.\-]+/g, "_");
       const path = lead.public_id + "/" + prefix + (orderBase + i) + "-" + safeName;
@@ -1038,7 +1088,8 @@
         confidenceNote: raw.confidence_note || raw.confidenceNote || "",
         observations,
         clientSummary:
-          raw.client_summary || raw.clientSummary || (data && data.client_message) || observations,
+          String(raw.client_summary || raw.clientSummary || (data && data.client_message) || "").trim() ||
+          CLIENT_SUMMARY_FALLBACK,
         sufficient: raw.sufficient !== false && (data && data.sufficient) !== false,
         titrePredevis: raw.titre_predevis || raw.titrePredevis || (data && data.titre_predevis) || "",
         disclaimer:
@@ -1074,9 +1125,6 @@
       const extra = extras[i++];
       if (out.some((x) => x.id === extra.id)) continue;
       out.push(extra);
-    }
-    if (out.length === 5 && !out.some((x) => x.kind === "video")) {
-      out[4] = extras[4];
     }
     let videos = 0;
     for (const item of out) {
@@ -1315,6 +1363,8 @@
       bio: fields.bio,
       tarifGrid: "",
       hasTarif: false,
+      baremeIndicatif: "",
+      baremeAutorise: false,
       email: fields.email,
       passHash: fields.password ? hashPass(fields.password) : "",
       createdAt: Date.now(),
@@ -1658,35 +1708,55 @@
       }
     },
 
-    async saveTarifGrid(text) {
+    async savePriceSources(input) {
       lastError = null;
       await Store.ready();
-      const tarif = String(text || "").trim();
+      const tarif = String((input && input.tarif) || "").trim();
+      const bareme = String((input && input.bareme) || "").trim();
+      const baremeAutorise = Boolean(input && input.baremeAutorise);
+      const patch = {
+        tarifGrid: tarif,
+        hasTarif: Boolean(tarif),
+        baremeIndicatif: bareme,
+        baremeAutorise,
+      };
       if (writesLocally() || !client) {
         const artisan = Store.currentArtisan();
         if (!artisan) throw new Error("Connectez-vous pour enregistrer la grille.");
         const list = readArtisans();
-        const next = list.map((a) =>
-          a.id === artisan.id ? { ...a, tarifGrid: tarif, hasTarif: Boolean(tarif) } : a
-        );
-        if (!list.length) {
-          writeArtisans([{ ...artisan, tarifGrid: tarif, hasTarif: Boolean(tarif) }]);
-        } else {
-          writeArtisans(next);
-        }
-        currentArtisan = { ...artisan, tarifGrid: tarif, hasTarif: Boolean(tarif) };
+        const next = list.map((a) => (a.id === artisan.id ? { ...a, ...patch } : a));
+        if (!list.length) writeArtisans([{ ...artisan, ...patch }]);
+        else writeArtisans(next);
+        currentArtisan = { ...artisan, ...patch };
         return currentArtisan;
       }
-      const rpc = await client.rpc("dv_save_tarif_grid", { p_tarif: tarif || null });
-      if (rpc.error) throwIf(rpc.error, "Impossible d’enregistrer la grille tarifaire.");
-      if (currentArtisan) {
-        currentArtisan = {
-          ...currentArtisan,
-          tarifGrid: tarif,
-          hasTarif: Boolean(tarif),
-        };
+      const rpc = await client.rpc("dv_save_price_sources", {
+        p_tarif: tarif || null,
+        p_bareme: bareme || null,
+        p_bareme_autorise: baremeAutorise,
+      });
+      if (rpc.error && /could not find the function|schema cache|does not exist/i.test(rpc.error.message || "")) {
+        const legacy = await client.rpc("dv_save_tarif_grid", { p_tarif: tarif || null });
+        if (legacy.error) throwIf(legacy.error, "Impossible d’enregistrer la grille tarifaire.");
+        if (currentArtisan) {
+          currentArtisan = { ...currentArtisan, tarifGrid: tarif, hasTarif: Boolean(tarif) };
+        }
+        throw new Error(
+          "La grille est enregistrée. Le barème indicatif attend la migration SQL du 1er octobre 2026."
+        );
       }
+      if (rpc.error) throwIf(rpc.error, "Impossible d’enregistrer les tarifs.");
+      if (currentArtisan) currentArtisan = { ...currentArtisan, ...patch };
       return currentArtisan;
+    },
+
+    async saveTarifGrid(text) {
+      const artisan = Store.currentArtisan();
+      return Store.savePriceSources({
+        tarif: text,
+        bareme: (artisan && artisan.baremeIndicatif) || "",
+        baremeAutorise: Boolean(artisan && artisan.baremeAutorise),
+      });
     },
 
     /**

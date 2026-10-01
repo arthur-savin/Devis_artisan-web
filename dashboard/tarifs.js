@@ -19,8 +19,10 @@
     const q = store.artisanQuery(artisan);
     document.getElementById("linkPage").href = "../page/index.html" + q;
     document.getElementById("linkWidget").href = "../widget/index.html" + q;
-    document.title = artisan.displayName + " — Grille tarifaire";
+    document.title = artisan.displayName + " — Former l’IA";
     document.getElementById("tarifGrid").value = artisan.tarifGrid || "";
+    document.getElementById("baremeIndicatif").value = artisan.baremeIndicatif || "";
+    document.getElementById("baremeAutorise").checked = Boolean(artisan.baremeAutorise);
   }
 
   document.getElementById("logout").addEventListener("click", async () => {
@@ -36,7 +38,11 @@
     ok.hidden = true;
     btn.disabled = true;
     try {
-      await store.saveTarifGrid(document.getElementById("tarifGrid").value);
+      await store.savePriceSources({
+        tarif: document.getElementById("tarifGrid").value,
+        bareme: document.getElementById("baremeIndicatif").value,
+        baremeAutorise: document.getElementById("baremeAutorise").checked,
+      });
       ok.hidden = false;
     } catch (e) {
       err.hidden = false;

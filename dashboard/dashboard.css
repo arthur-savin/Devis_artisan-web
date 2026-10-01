@@ -481,6 +481,26 @@ body.dash {
   font: inherit;
 }
 
+.ia-page {
+  padding: 22px;
+  max-width: 960px;
+  display: grid;
+  gap: 16px;
+}
+.ia-intro {
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+.ia-page h2 {
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.ia-page .panel > h2:first-child { margin-top: 0; }
+.ia-page .tarif-panel textarea { min-height: 200px; }
+
 .tarif-wrap { padding: 22px; max-width: 720px; }
 .tarif-panel { padding: 22px; }
 .tarif-lead {
@@ -506,6 +526,16 @@ body.dash {
   line-height: 1.45;
   resize: vertical;
 }
+.tarif-panel textarea.tarif-bareme { min-height: 140px; }
+.tarif-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 4px 0 8px;
+}
+.tarif-check input { margin-top: 3px; }
 .tarif-help {
   font-size: 0.8rem;
   color: var(--muted);

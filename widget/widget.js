@@ -6,7 +6,7 @@
 
   const names = ["Votre besoin", "Captures guidées", "Coordonnées", "Envoi"];
   const MAX_ATTEMPTS = 4;
-  const MAX_VIDEOS = 5;
+  const MAX_VIDEOS = 2;
   const MAX_VIDEO_MS = 30000;
   const RECORD_W = 1280;
   const RECORD_H = 720;
@@ -577,14 +577,14 @@
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
-        const max = 900;
+        const max = 1568;
         const scale = Math.min(1, max / Math.max(img.width, img.height));
         const canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.round(img.width * scale));
         canvas.height = Math.max(1, Math.round(img.height * scale));
         canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
-        resolve({ name: file.name, dataUrl: canvas.toDataURL("image/jpeg", 0.72), frames: [] });
+        resolve({ name: file.name, dataUrl: canvas.toDataURL("image/jpeg", 0.8), frames: [] });
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -633,7 +633,7 @@
             });
             const w = video.videoWidth || 640;
             const h = video.videoHeight || 360;
-            const max = 900;
+            const max = 1568;
             const scale = Math.min(1, max / Math.max(w, h));
             canvas.width = Math.max(1, Math.round(w * scale));
             canvas.height = Math.max(1, Math.round(h * scale));
@@ -1245,12 +1245,18 @@
     direction = "next";
     show(4);
     try {
+      const photosOnly = captured.filter((c) => c.kind !== "video");
+      const videosOnly = captured.filter((c) => c.kind === "video");
+      const skippedLabel = (s) => ((s.item && s.item.label) || "Capture") + " (non prise)";
       const result = await window.DevisStore.qualify("review", {
         description: artisanDetails(),
-        images: captured.flatMap((c) => (c.frames && c.frames.length ? c.frames : [c.dataUrl])),
-        photo_labels: captured
-          .map((c) => c.item.label + (isVideo(c.item) ? " (vidéo)" : ""))
-          .concat(skipped.map((s) => ((s.item && s.item.label) || "Capture") + " (non prise)")),
+        images: photosOnly.map((c) => c.dataUrl).filter(Boolean),
+        photo_labels: photosOnly
+          .map((c) => c.item.label)
+          .concat(skipped.filter((s) => !isVideo(s.item)).map(skippedLabel)),
+        video_labels: videosOnly
+          .map((c) => c.item.label)
+          .concat(skipped.filter((s) => isVideo(s.item)).map(skippedLabel)),
         extra_taken: extraTaken,
       });
       if (run !== journey) return;
@@ -1456,8 +1462,8 @@
       title: c.item.label || (c.kind === "video" ? "Vidéo " : "Photo ") + (i + 1),
       dataUrl: c.kind === "video" ? "" : c.dataUrl,
       kind: c.kind === "video" ? "video" : "photo",
-      size: c.file && c.file.size,
-      file: c.file,
+      size: c.kind === "video" ? c.file && c.file.size : undefined,
+      file: c.kind === "video" ? c.file : null,
     }));
     const payload = {
       artisanRef: artisanRef || (artisan && artisan.id) || "",
@@ -1537,7 +1543,7 @@
   function offerVideoInstead() {
     const item = currentItem();
     if (!item || !canOfferVideo()) {
-      setFeedback("Cinq vidéos au plus, d’environ 30 secondes chacune, filmées ici en 720p.", "wait");
+      setFeedback("Deux vidéos au plus, d’environ 30 secondes chacune, filmées ici en 720p.", "wait");
       return;
     }
     clearPreview();
