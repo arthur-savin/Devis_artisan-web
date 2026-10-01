@@ -780,6 +780,24 @@
     return normalizeArtisan(row);
   }
 
+  function authRequired() {
+    return cfg().authRequired !== false;
+  }
+
+  function writesLocally() {
+    if (!isSupabaseConfigured()) return true;
+    if (authRequired()) return false;
+    return !(signedIn && currentArtisan && currentArtisan.dbId != null);
+  }
+
+  function openLocalAccess() {
+    if (!readArtisans().length) writeArtisans([normalizeArtisan(SEED_ARTISAN)]);
+    const artisan = readArtisans()[0] || normalizeArtisan(SEED_ARTISAN);
+    currentArtisan = artisan;
+    sessionStorage.setItem(SESSION, "1");
+    sessionStorage.setItem(SESSION_ARTISAN, artisan.id);
+  }
+
   function authRedirectUrl() {
     try {
       const here = new URL(global.location.href);
@@ -893,8 +911,13 @@
       try {
         await loadArtisanFromAuth();
         if (!currentArtisan) await ensureArtisanProfile();
-        const challenge = await prepareDeviceChallenge();
-        if (!challenge) await fetchLeads();
+        if (!authRequired()) {
+          deviceChallenge = null;
+          await fetchLeads();
+        } else {
+          const challenge = await prepareDeviceChallenge();
+          if (!challenge) await fetchLeads();
+        }
       } catch (err) {
         cache = [];
         lastError = err.message;
@@ -1338,6 +1361,10 @@
       return isSupabaseConfigured() ? "supabase" : "local";
     },
 
+    authRequired() {
+      return authRequired();
+    },
+
     get lastError() {
       return lastError;
     },
@@ -1353,7 +1380,7 @@
     },
 
     seedIfEmpty() {
-      if (Store.backend === "supabase") return;
+      if (Store.backend === "supabase" && authRequired()) return;
       if (!readArtisans().length) writeArtisans([SEED_ARTISAN]);
       if (readLocal().length) return;
       writeLocal(SEED);
@@ -1582,7 +1609,7 @@
         dbPatch.hidden_at = patch.hiddenAt ? new Date(patch.hiddenAt).toISOString() : null;
       }
 
-      if (Store.backend !== "supabase") {
+      if (writesLocally()) {
         const now = Date.now();
         writeLocal(
           readLocal().map((x) => (list.includes(x.id) ? { ...x, ...patch, updatedAt: now } : x))
@@ -1607,7 +1634,7 @@
       await Store.ready();
       const item = Store.get(id);
       const publicId = item ? item.id : id;
-      if (Store.backend !== "supabase") {
+      if (writesLocally()) {
         const current = Store.get(publicId);
         if (!current) throw new Error("Demande introuvable.");
         return applyLocalQualify("finalize", { public_id: publicId, snapshot: current });
@@ -1635,7 +1662,7 @@
       lastError = null;
       await Store.ready();
       const tarif = String(text || "").trim();
-      if (Store.backend !== "supabase" || !client) {
+      if (writesLocally() || !client) {
         const artisan = Store.currentArtisan();
         if (!artisan) throw new Error("Connectez-vous pour enregistrer la grille.");
         const list = readArtisans();
@@ -1692,7 +1719,7 @@
         " € HT" +
         (reason ? " — " + reason : "");
 
-      if (Store.backend !== "supabase") {
+      if (writesLocally()) {
         const artisan = Store.currentArtisan();
         writeServicePrices(
           readServicePrices().concat([
@@ -2033,7 +2060,7 @@
         kind: kind || "note",
         message,
       };
-      if (Store.backend !== "supabase") {
+      if (writesLocally()) {
         const list = readLocal().map((x) => {
           if (x.id !== id) return x;
           return { ...x, events: (x.events || []).concat([event]), updatedAt: Date.now() };
@@ -2192,6 +2219,7 @@
     },
 
     isLoggedIn() {
+      if (!authRequired()) return true;
       if (Store.backend === "supabase") {
         if (signedIn) return true;
         return sessionStorage.getItem(SESSION) === "1" && Boolean(readSessionArtisanId());
@@ -2201,6 +2229,17 @@
 
     async hasSession() {
       await Store.ready();
+      if (!authRequired()) {
+        if (Store.backend === "supabase" && client) {
+          const { data } = await client.auth.getSession();
+          signedIn = Boolean(data && data.session);
+          if (signedIn && !currentArtisan) await loadArtisanFromAuth();
+          if (signedIn && !currentArtisan) await ensureArtisanProfile();
+        }
+        if (!currentArtisan) openLocalAccess();
+        deviceChallenge = null;
+        return true;
+      }
       if (Store.backend !== "supabase") return Store.isLoggedIn();
       const { data } = await client.auth.getSession();
       signedIn = Boolean(data && data.session);

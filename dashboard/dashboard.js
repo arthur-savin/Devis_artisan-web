@@ -28,10 +28,16 @@
   }
 
   if (backendNote) {
-    backendNote.textContent =
-      store.backend === "supabase" ? "Connecté à Supabase" : "Démo locale · pas d’API";
+    backendNote.textContent = !store.authRequired()
+      ? "Authentification désactivée"
+      : store.backend === "supabase"
+        ? "Connecté à Supabase"
+        : "Démo locale · pas d’API";
   }
-  if (store.backend === "supabase") {
+  if (!store.authRequired()) {
+    const logoutBtn = document.getElementById("logout");
+    if (logoutBtn) logoutBtn.hidden = true;
+  } else if (store.backend === "supabase") {
     hint.textContent =
       "Compte créé dans Supabase. Sur un navigateur déjà utilisé, le mot de passe suffit. Sur un nouveau, un code e-mail (et SMS si le compte a un numéro) est demandé.";
     if (resetBtn) resetBtn.hidden = true;

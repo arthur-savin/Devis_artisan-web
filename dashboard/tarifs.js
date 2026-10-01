@@ -7,6 +7,8 @@
     window.location.href = "./index.html";
     return;
   }
+  const logoutBtn = document.getElementById("logout");
+  if (logoutBtn && !store.authRequired()) logoutBtn.hidden = true;
 
   const artisan = store.currentArtisan();
   if (artisan) {

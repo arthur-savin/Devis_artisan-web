@@ -8,4 +8,6 @@ window.DEVIS_SUPABASE = {
   anonKey: "YOUR_ANON_KEY",
   artisanPublicId: "art_demo_01",
   // Optionnel : identifiant public de l’atelier par défaut (page / widget sans ?a=)
+  // false ouvre le dashboard sans connexion. true réactive mot de passe et codes.
+  authRequired: true,
 };
