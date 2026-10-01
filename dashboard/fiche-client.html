@@ -484,10 +484,19 @@
     .prestations li {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       gap: 12px;
       font-size: 0.88rem;
       border-bottom: 1px solid rgba(244, 196, 48, 0.16);
       padding-bottom: 8px;
+    }
+
+    .prestations .amt-col {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
     }
 
     .prestations .amt {
@@ -496,6 +505,31 @@
       white-space: nowrap;
       font-size: 0.8rem;
     }
+
+    .btn-price {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--gold);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .btn-price:hover { color: #fff; }
+
+    .price-modal-error {
+      color: var(--danger);
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+
+    .price-modal-error[hidden] { display: none !important; }
+
+    #priceSkip { white-space: normal; text-align: center; max-width: 280px; }
 
     .prestations strong { display: block; font-weight: 700; }
     .prestations small {
@@ -1153,6 +1187,40 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-paper" id="photoAskCancel">Annuler</button>
         <button type="button" class="btn btn-gold" id="photoAskSend">Ouvrir l’e-mail au client</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="priceModal" role="dialog" aria-modal="true" aria-labelledby="priceModalTitle" hidden>
+    <div class="modal-card">
+      <button type="button" class="modal-close" id="priceModalClose" aria-label="Fermer">×</button>
+      <div id="priceStepAmount">
+        <p class="kicker">Votre prix</p>
+        <h2 id="priceModalTitle">Modifier le prix</h2>
+        <p class="card-lead" id="priceServiceLabel"></p>
+        <p class="card-lead" id="priceCurrent" hidden></p>
+        <label class="lab" for="priceInput">Prix que vous retenez (€ HT)</label>
+        <div class="suffix">
+          <input id="priceInput" type="number" min="1" step="1" inputmode="decimal" placeholder="ex. 220" />
+          <em>€</em>
+        </div>
+        <p class="price-modal-error" id="priceAmountError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-paper" id="priceCancel">Annuler</button>
+          <button type="button" class="btn btn-gold" id="priceAmountOk">OK</button>
+        </div>
+      </div>
+      <div id="priceStepReason" hidden>
+        <p class="kicker">Votre prix</p>
+        <h2 id="priceReasonTitle">Qu’est-ce qui fait que c’est plus cher ?</h2>
+        <p class="card-lead" id="priceReasonLead"></p>
+        <label class="lab" for="priceReason">Ce qui explique cet écart</label>
+        <textarea id="priceReason" placeholder="Ex. accès difficile, reprise de l’ancien câblage, fourniture spécifique…"></textarea>
+        <p class="price-modal-error" id="priceReasonError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-paper" id="priceSkip">Je n’ai pas plus d’avis, c’est le prix</button>
+          <button type="button" class="btn btn-gold" id="priceReasonOk">OK</button>
+        </div>
       </div>
     </div>
   </div>

@@ -6,10 +6,14 @@
 (function (global) {
   const KEY = "artisan-devis.requests.v1";
   const ARTISANS_KEY = "artisan-devis.artisans.v1";
+  const SERVICE_PRICES_KEY = "artisan-devis.service-prices.v1";
+  const IMPORTS_KEY = "artisan-devis.quote-imports.v1";
   const SESSION = "artisan-devis.session";
   const SESSION_ARTISAN = "artisan-devis.session.artisan";
   const DEFAULT_ARTISAN_ID = "art_demo_01";
   const BUCKET = "chantier-photos";
+  const QUOTE_BUCKET = "devis-archives";
+  const MAX_QUOTE_BYTES = 8 * 1024 * 1024;
   const MAX_PHOTOS = 5;
   const MAX_VIDEOS = 5;
   const METIERS = [
@@ -148,6 +152,102 @@
   function writeLocal(list) {
     localStorage.setItem(KEY, JSON.stringify(list));
     global.dispatchEvent(new CustomEvent("devis:change"));
+  }
+
+  function readServicePrices() {
+    try {
+      const data = JSON.parse(localStorage.getItem(SERVICE_PRICES_KEY) || "[]");
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeServicePrices(list) {
+    localStorage.setItem(SERVICE_PRICES_KEY, JSON.stringify(list));
+  }
+
+  function readQuoteImports() {
+    try {
+      const data = JSON.parse(localStorage.getItem(IMPORTS_KEY) || "[]");
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeQuoteImports(list) {
+    localStorage.setItem(IMPORTS_KEY, JSON.stringify(list));
+  }
+
+  function quoteMime(file) {
+    const type = String((file && file.type) || "").toLowerCase();
+    const name = String((file && file.name) || "").toLowerCase();
+    if (type === "application/pdf" || name.endsWith(".pdf")) return "application/pdf";
+    if (type === "image/jpg" || type === "image/jpeg" || name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+      return "image/jpeg";
+    }
+    if (type === "image/png" || name.endsWith(".png")) return "image/png";
+    if (type === "image/webp" || name.endsWith(".webp")) return "image/webp";
+    if (type === "image/gif" || name.endsWith(".gif")) return "image/gif";
+    return "";
+  }
+
+  function mapQuoteImport(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      createdAt: row.created_at ? Date.parse(row.created_at) : row.createdAt || Date.now(),
+      filename: row.filename || "",
+      mimeType: row.mime_type || row.mimeType || "",
+      sizeBytes: row.size_bytes || row.sizeBytes || 0,
+      status: row.status || "en_attente",
+      errorMessage: row.error_message || row.errorMessage || "",
+      title: row.title || "",
+      extractedAt: row.extracted_at ? Date.parse(row.extracted_at) : row.extractedAt || null,
+    };
+  }
+
+  function mapServicePriceRow(row) {
+    if (!row) return null;
+    const importId = row.import_id != null ? row.import_id : row.importId != null ? row.importId : null;
+    const source = row.source || (importId != null ? "import" : "correction");
+    const previous = row.previous_amount_ht != null ? row.previous_amount_ht : row.previousAmountHt;
+    return {
+      id: row.id,
+      createdAt: row.created_at ? Date.parse(row.created_at) : row.createdAt || Date.now(),
+      source: source === "import" ? "import" : "correction",
+      serviceLabel: row.service_label || row.serviceLabel || "",
+      amountHt: Number(row.amount_ht != null ? row.amount_ht : row.amountHt),
+      previousAmountHt: previous != null && previous !== "" ? Number(previous) : null,
+      reason: row.reason || "",
+      detail: row.detail || "",
+      leadId: row.lead_id != null ? row.lead_id : row.leadId || null,
+      importId,
+    };
+  }
+
+  function applyRecordedPrice(estimate, label, amount) {
+    const base = estimate || { prestations: [], hasPrice: false, priceMin: null, priceMax: null };
+    const prestations = (base.prestations || []).map((p) =>
+      p.label === label ? { ...p, amount } : { ...p }
+    );
+    if (!prestations.some((p) => p.label === label)) {
+      prestations.push({ label, detail: "", amount });
+    }
+    if (!base.hasPrice) {
+      const sum = prestations.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      return { ...base, hasPrice: true, priceMin: sum, priceMax: sum, prestations };
+    }
+    const prev = (base.prestations || []).find((p) => p.label === label);
+    const delta = amount - (prev ? Number(prev.amount) || 0 : 0);
+    return {
+      ...base,
+      hasPrice: true,
+      priceMin: Math.max(0, (Number(base.priceMin) || 0) + delta),
+      priceMax: Math.max(0, (Number(base.priceMax) || 0) + delta),
+      prestations,
+    };
   }
 
   function readArtisans() {
@@ -507,8 +607,10 @@
 
   let client = null;
   let cache = [];
+  const DEVICE_KEY = "artisan-devis.device";
   let signedIn = false;
   let currentArtisan = null;
+  let deviceChallenge = null;
   let readyPromise = null;
   let lastError = null;
 
@@ -618,6 +720,48 @@
     return currentArtisan;
   }
 
+  async function ensureArtisanProfile() {
+    if (!client) return null;
+    const existing = await loadArtisanFromAuth();
+    if (existing) return existing;
+    const { data, error } = await client.auth.getUser();
+    if (error || !data || !data.user) return null;
+    const meta = data.user.user_metadata || {};
+    const displayName = String(meta.display_name || "").trim();
+    if (!displayName) return null;
+    const rpc = await client.rpc("dv_register_artisan", {
+      p_display_name: displayName,
+      p_metier: String(meta.metier || "Artisan"),
+      p_ville: meta.ville || null,
+      p_telephone: meta.telephone || null,
+      p_bio: meta.bio || null,
+      p_slug: slugify(displayName),
+    });
+    if (rpc.error) {
+      lastError = rpc.error.message;
+      return null;
+    }
+    const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+    currentArtisan = normalizeArtisan(
+      row && row.public_id
+        ? {
+            public_id: row.public_id,
+            id: row.id,
+            slug: row.slug,
+            display_name: displayName,
+            metier: meta.metier || "Artisan",
+            ville: meta.ville || "",
+            telephone: meta.telephone || "",
+            bio: meta.bio || "",
+            email: data.user.email || "",
+          }
+        : null
+    );
+    if (!currentArtisan) await loadArtisanFromAuth();
+    if (currentArtisan) sessionStorage.setItem(SESSION_ARTISAN, currentArtisan.id);
+    return currentArtisan;
+  }
+
   async function fetchPublicArtisan(ref) {
     const key = String(ref || "").trim();
     if (!key) return null;
@@ -636,6 +780,111 @@
     return normalizeArtisan(row);
   }
 
+  function authRedirectUrl() {
+    try {
+      const here = new URL(global.location.href);
+      if (here.protocol === "http:" || here.protocol === "https:") {
+        return here.origin + "/dashboard";
+      }
+    } catch (err) {
+      return "";
+    }
+    return "";
+  }
+
+  function readDeviceId() {
+    try {
+      let id = localStorage.getItem(DEVICE_KEY);
+      if (!id) {
+        id =
+          global.crypto && typeof global.crypto.randomUUID === "function"
+            ? global.crypto.randomUUID()
+            : "dev_" + Date.now().toString(36) + Math.random().toString(36).slice(2);
+        localStorage.setItem(DEVICE_KEY, id);
+      }
+      return id;
+    } catch {
+      return "";
+    }
+  }
+
+  function missingDevicesTable(error) {
+    const msg = (error && error.message) || "";
+    return /could not find|schema cache|does not exist|dv_trusted_devices/i.test(msg);
+  }
+
+  function challengeFromUser(user) {
+    return {
+      needsCode: true,
+      email: (user && user.email) || "",
+      phone: (user && user.phone) || "",
+      emailSent: false,
+      smsSent: false,
+      smsError: "",
+      sendError: "",
+    };
+  }
+
+  async function currentAuthUser() {
+    if (!client) return null;
+    const { data } = await client.auth.getUser();
+    return data && data.user ? data.user : null;
+  }
+
+  async function isTrustedDevice() {
+    if (!client) return true;
+    const id = readDeviceId();
+    const user = await currentAuthUser();
+    if (!user || !id) return false;
+    const { data, error } = await client
+      .from("dv_trusted_devices")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .eq("device_id", id)
+      .maybeSingle();
+    if (error) {
+      if (missingDevicesTable(error)) return true;
+      lastError = error.message;
+      return false;
+    }
+    if (!data) return false;
+    client
+      .from("dv_trusted_devices")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .then(() => {});
+    return true;
+  }
+
+  async function rememberDevice() {
+    const user = await currentAuthUser();
+    const id = readDeviceId();
+    if (!user || !id) return;
+    const { error } = await client.from("dv_trusted_devices").upsert(
+      {
+        auth_user_id: user.id,
+        device_id: id,
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: "auth_user_id,device_id" }
+    );
+    if (error && !missingDevicesTable(error)) {
+      throwIf(error, "Impossible d’enregistrer ce navigateur.");
+    }
+    deviceChallenge = null;
+  }
+
+  async function prepareDeviceChallenge() {
+    const user = await currentAuthUser();
+    if (!user) return null;
+    if (await isTrustedDevice()) {
+      deviceChallenge = null;
+      return null;
+    }
+    deviceChallenge = challengeFromUser(user);
+    return deviceChallenge;
+  }
+
   async function initSupabase() {
     client = createClient();
     const { data } = await client.auth.getSession();
@@ -643,7 +892,9 @@
     if (signedIn) {
       try {
         await loadArtisanFromAuth();
-        await fetchLeads();
+        if (!currentArtisan) await ensureArtisanProfile();
+        const challenge = await prepareDeviceChallenge();
+        if (!challenge) await fetchLeads();
       } catch (err) {
         cache = [];
         lastError = err.message;
@@ -1411,6 +1662,296 @@
       return currentArtisan;
     },
 
+    /**
+     * Enregistre le prix décidé par l’artisan pour un type de service.
+     * reason vide = « je n’ai pas plus d’avis, c’est le prix ».
+     */
+    async recordServicePrice(leadId, payload) {
+      lastError = null;
+      await Store.ready();
+      const label = String((payload && payload.label) || "").trim();
+      const amount = Number(payload && payload.amountHt);
+      const reason = String((payload && payload.reason) || "").trim();
+      if (!label) throw new Error("Type de service manquant.");
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
+        throw new Error("Indiquez un prix valide.");
+      }
+      const item = Store.get(leadId);
+      if (!item) throw new Error("Demande introuvable.");
+      const rounded = Math.round(amount * 100) / 100;
+      const previousRaw = payload && payload.previousAmount;
+      const previous =
+        previousRaw != null && Number.isFinite(Number(previousRaw))
+          ? Math.round(Number(previousRaw) * 100) / 100
+          : null;
+      const message =
+        "Prix artisan — " +
+        label +
+        " : " +
+        rounded.toLocaleString("fr-FR") +
+        " € HT" +
+        (reason ? " — " + reason : "");
+
+      if (Store.backend !== "supabase") {
+        const artisan = Store.currentArtisan();
+        writeServicePrices(
+          readServicePrices().concat([
+            {
+              id: "sp_" + Date.now().toString(36),
+              artisanId: artisan ? artisan.id : DEFAULT_ARTISAN_ID,
+              serviceLabel: label,
+              amountHt: rounded,
+              previousAmountHt: previous,
+              reason: reason || null,
+              leadId: item.id,
+              createdAt: Date.now(),
+            },
+          ])
+        );
+        const event = { createdAt: Date.now(), kind: "tarif", message };
+        writeLocal(
+          readLocal().map((x) => {
+            if (x.id !== item.id) return x;
+            return {
+              ...x,
+              estimate: applyRecordedPrice(x.estimate, label, rounded),
+              events: (x.events || []).concat([event]),
+              updatedAt: Date.now(),
+            };
+          })
+        );
+        return Store.get(item.id);
+      }
+
+      const rpc = await client.rpc("dv_record_service_price", {
+        p_lead_public_id: item.id,
+        p_label: label,
+        p_amount: rounded,
+        p_reason: reason || null,
+      });
+      if (rpc.error) {
+        const msg = String(rpc.error.message || "");
+        if (/dv_record_service_price|could not find|schema cache|does not exist/i.test(msg)) {
+          throw new Error(
+            "La base n’a pas encore l’enregistrement des prix par service. Exécutez la migration 20260930193000_service_prices.sql dans le SQL Editor Supabase."
+          );
+        }
+        throwIf(rpc.error, "Impossible d’enregistrer ce prix.");
+      }
+      await fetchLeads();
+      emit();
+      return Store.get(item.id);
+    },
+
+    async hasCloudSession() {
+      await Store.ready();
+      if (Store.backend !== "supabase" || !client) return false;
+      const { data } = await client.auth.getSession();
+      return Boolean(data && data.session && currentArtisan && currentArtisan.dbId != null);
+    },
+
+    async listCalibration() {
+      await Store.ready();
+      const artisan = Store.currentArtisan();
+      const artisanKey = artisan ? artisan.id : "";
+      if (!(await Store.hasCloudSession())) {
+        const imports = readQuoteImports()
+          .filter((row) => !artisanKey || row.artisanId === artisanKey)
+          .map(mapQuoteImport)
+          .filter(Boolean)
+          .sort((a, b) => b.createdAt - a.createdAt);
+        const prices = readServicePrices()
+          .filter((row) => !artisanKey || row.artisanId === artisanKey)
+          .map(mapServicePriceRow)
+          .filter(Boolean)
+          .sort((a, b) => b.createdAt - a.createdAt);
+        return { imports, prices, cloud: false };
+      }
+      const importsRes = await client
+        .from("dv_quote_imports")
+        .select("id, filename, mime_type, size_bytes, status, error_message, title, extracted_at, created_at")
+        .eq("artisan_id", artisan.dbId)
+        .order("created_at", { ascending: false });
+      if (importsRes.error) {
+        const msg = String(importsRes.error.message || "");
+        if (/dv_quote_imports|schema cache|does not exist|relation/i.test(msg)) {
+          throw new Error(
+            "La page d’import n’est pas encore en base. Exécutez la migration 20260930200000_quote_imports.sql dans le SQL Editor Supabase."
+          );
+        }
+        throwIf(importsRes.error, "Impossible de lire les devis déposés.");
+      }
+      let pricesRes = await client
+        .from("dv_service_prices")
+        .select("id, service_label, amount_ht, previous_amount_ht, reason, detail, lead_id, source, import_id, created_at")
+        .eq("artisan_id", artisan.dbId)
+        .order("created_at", { ascending: false });
+      if (pricesRes.error && /detail|source|import_id/i.test(String(pricesRes.error.message || ""))) {
+        pricesRes = await client
+          .from("dv_service_prices")
+          .select("id, service_label, amount_ht, previous_amount_ht, reason, lead_id, created_at")
+          .eq("artisan_id", artisan.dbId)
+          .order("created_at", { ascending: false });
+      }
+      throwIf(pricesRes.error, "Impossible de lire les prix enregistrés.");
+      return {
+        cloud: true,
+        imports: (importsRes.data || []).map(mapQuoteImport).filter(Boolean),
+        prices: (pricesRes.data || []).map(mapServicePriceRow).filter(Boolean),
+      };
+    },
+
+    async addQuoteFiles(fileList) {
+      await Store.ready();
+      const files = Array.from(fileList || []).filter(Boolean);
+      if (!files.length) return { imports: [], warnings: [] };
+      const artisan = Store.currentArtisan();
+      if (!artisan) throw new Error("Connectez-vous pour déposer un devis.");
+      const warnings = [];
+      const imports = [];
+      let keptLocally = false;
+      for (const file of files) {
+        const mime = quoteMime(file);
+        if (!mime) {
+          warnings.push(file.name + " : format non accepté (PDF, JPEG, PNG, WEBP ou GIF).");
+          continue;
+        }
+        if (!file.size) {
+          warnings.push(file.name + " : fichier vide.");
+          continue;
+        }
+        if (file.size > MAX_QUOTE_BYTES) {
+          warnings.push(file.name + " : 8 Mo maximum.");
+          continue;
+        }
+        if (!(await Store.hasCloudSession())) {
+          const row = {
+            id: "qi_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+            artisanId: artisan.id,
+            createdAt: Date.now(),
+            filename: file.name,
+            mimeType: mime,
+            sizeBytes: file.size,
+            status: "en_attente",
+            errorMessage: "Connectez-vous au compte cloud pour que l’IA lise ce devis.",
+            title: "",
+            extractedAt: null,
+          };
+          writeQuoteImports(readQuoteImports().concat([row]));
+          imports.push(mapQuoteImport(row));
+          keptLocally = true;
+          continue;
+        }
+        const safeName = String(file.name || "devis").replace(/[^\w.\-]+/g, "_").slice(0, 80);
+        const path = artisan.dbId + "/" + Date.now().toString(36) + "-" + safeName;
+        const uploaded = await client.storage.from(QUOTE_BUCKET).upload(path, file, {
+          contentType: mime,
+          upsert: false,
+        });
+        if (uploaded.error) {
+          const msg = String(uploaded.error.message || "");
+          if (/bucket|not found|devis-archives/i.test(msg)) {
+            throw new Error(
+              "Le stockage des devis n’est pas encore créé. Exécutez la migration 20260930200000_quote_imports.sql dans le SQL Editor Supabase."
+            );
+          }
+          throwIf(uploaded.error, "Envoi du fichier impossible.");
+        }
+        const inserted = await client
+          .from("dv_quote_imports")
+          .insert({
+            artisan_id: artisan.dbId,
+            filename: String(file.name || safeName).slice(0, 180),
+            mime_type: mime,
+            size_bytes: file.size,
+            storage_path: path,
+            status: "en_attente",
+          })
+          .select("id, filename, mime_type, size_bytes, status, error_message, title, extracted_at, created_at")
+          .single();
+        if (inserted.error) {
+          await client.storage.from(QUOTE_BUCKET).remove([path]);
+          const msg = String(inserted.error.message || "");
+          if (/dv_quote_imports|schema cache|does not exist|relation/i.test(msg)) {
+            throw new Error(
+              "La page d’import n’est pas encore en base. Exécutez la migration 20260930200000_quote_imports.sql dans le SQL Editor Supabase."
+            );
+          }
+          throwIf(inserted.error, "Impossible d’enregistrer le devis.");
+        }
+        const mapped = mapQuoteImport(inserted.data);
+        imports.push(mapped);
+        try {
+          await Store.extractQuote(mapped.id, false);
+        } catch (err) {
+          warnings.push((file.name || "Devis") + " : " + ((err && err.message) || "lecture IA impossible."));
+        }
+      }
+      if (keptLocally) {
+        warnings.push(
+          "Les fichiers sont gardés dans ce navigateur. Connectez-vous au compte cloud pour que l’IA les lise et enregistre les prix."
+        );
+      }
+      return { imports, warnings };
+    },
+
+    async extractQuote(importId, force) {
+      await Store.ready();
+      if (!(await Store.hasCloudSession())) {
+        throw new Error(
+          "Connectez-vous avec le compte cloud de l’atelier pour que l’IA lise le devis et enregistre les prix."
+        );
+      }
+      const { data, error } = await client.functions.invoke("extract-quote", {
+        body: { import_id: Number(importId), force: Boolean(force) },
+      });
+      let detail = data && data.error;
+      if (!detail && error && error.context && typeof error.context.json === "function") {
+        try {
+          const body = await error.context.clone().json();
+          detail = body && body.error;
+        } catch {
+          detail = "";
+        }
+      }
+      if (error || (data && data.ok === false)) {
+        const msg = detail || (error && error.message) || "Lecture du devis impossible.";
+        if (/extract-quote|not found|404|failed to send/i.test(String(msg))) {
+          throw new Error(
+            "La lecture IA n’est pas encore déployée. Le devis est enregistré : relancez la lecture une fois la fonction extract-quote en ligne."
+          );
+        }
+        throw new Error(msg);
+      }
+      return data || { ok: true };
+    },
+
+    async deleteQuoteImport(importId) {
+      await Store.ready();
+      const artisan = Store.currentArtisan();
+      if (!(await Store.hasCloudSession())) {
+        const artisanKey = artisan ? artisan.id : "";
+        writeQuoteImports(
+          readQuoteImports().filter((row) => String(row.id) !== String(importId) || (artisanKey && row.artisanId !== artisanKey))
+        );
+        writeServicePrices(
+          readServicePrices().filter((row) => String(row.importId) !== String(importId))
+        );
+        return;
+      }
+      const existing = await client
+        .from("dv_quote_imports")
+        .select("storage_path")
+        .eq("id", importId)
+        .maybeSingle();
+      throwIf(existing.error, "Devis introuvable.");
+      if (existing.data && existing.data.storage_path) {
+        await client.storage.from(QUOTE_BUCKET).remove([existing.data.storage_path]);
+      }
+      const removed = await client.from("dv_quote_imports").delete().eq("id", importId);
+      throwIf(removed.error, "Impossible de retirer ce devis.");
+    },
+
     async appendPhotos(leadRef, photos) {
       lastError = null;
       await Store.ready();
@@ -1552,32 +2093,25 @@
         return { artisan, needsConfirm: false };
       }
 
+      const redirectTo = String(payload.redirectTo || "").trim() || authRedirectUrl();
       const { data: signed, error: signErr } = await client.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: redirectTo || undefined,
+          data: {
+            display_name: displayName,
+            metier,
+            ville,
+            telephone,
+            bio,
+          },
+        },
       });
       if (signErr) {
         const already = /already|registered|exists/i.test(signErr.message || "");
         if (already) {
-          try {
-            const artisan = saveLocalArtisan({
-              displayName,
-              metier,
-              ville,
-              telephone,
-              bio,
-              email,
-              password,
-            });
-            sessionStorage.setItem(SESSION, "1");
-            sessionStorage.setItem(SESSION_ARTISAN, artisan.id);
-            currentArtisan = artisan;
-            signedIn = true;
-            emit();
-            return { artisan, needsConfirm: false };
-          } catch {
-            throwIf(signErr, "Impossible de créer le compte artisan.");
-          }
+          throw new Error("Un compte existe déjà avec cet e-mail. Connectez-vous au dashboard.");
         }
         throwIf(signErr, "Impossible de créer le compte artisan.");
       }
@@ -1671,7 +2205,12 @@
       const { data } = await client.auth.getSession();
       signedIn = Boolean(data && data.session);
       if (signedIn && !currentArtisan) await loadArtisanFromAuth();
-      if (signedIn) return true;
+      if (signedIn && !currentArtisan) await ensureArtisanProfile();
+      if (signedIn) {
+        const challenge = await prepareDeviceChallenge();
+        if (challenge) return false;
+        return true;
+      }
       if (sessionStorage.getItem(SESSION) === "1") {
         const id = readSessionArtisanId();
         const local = id && readArtisans().find((a) => a.id === id);
@@ -1691,7 +2230,7 @@
         const artisans = readArtisans().length ? readArtisans() : [normalizeArtisan(SEED_ARTISAN)];
         const artisan = artisans.find((a) => a.email === mail);
         if (!artisan) {
-          throw new Error("Aucun atelier avec cet e-mail. Créez d’abord une page artisan.");
+          throw new Error("Aucun atelier avec cet e-mail. Créez d’abord un compte.");
         }
         if (artisan.passHash) {
           if (hashPass(password) !== artisan.passHash) {
@@ -1711,6 +2250,18 @@
         password: password,
       });
       if (error) {
+        const msg = error.message || "";
+        if (/not confirmed|email_not_confirmed/i.test(msg)) {
+          const resent = await client.auth.resend({
+            type: "signup",
+            email: mail,
+            options: { emailRedirectTo: authRedirectUrl() || undefined },
+          });
+          if (resent.error) throwIf(resent.error, "Impossible de renvoyer le lien de confirmation.");
+          throw new Error(
+            "Cet e-mail n’est pas encore confirmé. Un nouveau lien vient d’être envoyé : ouvrez-le dans ce même navigateur."
+          );
+        }
         const local = readArtisans().find((a) => a.email === mail);
         if (local && local.passHash && hashPass(password) === local.passHash) {
           sessionStorage.setItem(SESSION, "1");
@@ -1723,6 +2274,7 @@
       }
       signedIn = true;
       await loadArtisanFromAuth();
+      if (!currentArtisan) await ensureArtisanProfile();
       if (!currentArtisan) {
         const local = readArtisans().find((a) => a.email === mail);
         if (local) {
@@ -1730,6 +2282,92 @@
           sessionStorage.setItem(SESSION_ARTISAN, local.id);
         }
       }
+      const challenge = await prepareDeviceChallenge();
+      if (challenge) {
+        try {
+          await Store.sendLoginCodes();
+        } catch (err) {
+          deviceChallenge.sendError = err.message || "Impossible d’envoyer le code.";
+        }
+        return deviceChallenge;
+      }
+      await fetchLeads();
+      emit();
+      return currentArtisan;
+    },
+
+    deviceChallenge() {
+      return deviceChallenge;
+    },
+
+    async sendLoginCodes() {
+      await Store.ready();
+      const user = await currentAuthUser();
+      if (!user || !user.email) {
+        throw new Error("Connectez-vous d’abord avec le mot de passe.");
+      }
+      deviceChallenge = challengeFromUser(user);
+      const redirectTo = authRedirectUrl() || global.location.href.split("#")[0].split("?")[0];
+      const emailRes = await client.auth.signInWithOtp({
+        email: user.email,
+        options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+      });
+      if (emailRes.error) throwIf(emailRes.error, "Impossible d’envoyer le code e-mail.");
+      deviceChallenge.emailSent = true;
+      if (user.phone) {
+        const smsRes = await client.auth.signInWithOtp({
+          phone: user.phone,
+          options: { shouldCreateUser: false },
+        });
+        if (smsRes.error) {
+          deviceChallenge.smsError =
+            "Le SMS n’a pas pu être envoyé. Le numéro du compte et l’envoi SMS doivent être activés dans Supabase.";
+        } else {
+          deviceChallenge.smsSent = true;
+        }
+      }
+      return deviceChallenge;
+    },
+
+    async verifyLoginCodes(emailCode, smsCode) {
+      await Store.ready();
+      const user = await currentAuthUser();
+      if (!user) throw new Error("La session a expiré. Reconnectez-vous.");
+      const token = String(emailCode || "").replace(/\s/g, "");
+      if (!/^\d{6,8}$/.test(token)) {
+        throw new Error("Indiquez le code reçu par e-mail.");
+      }
+      let checked = await client.auth.verifyOtp({
+        email: user.email,
+        token,
+        type: "email",
+      });
+      if (checked.error) {
+        checked = await client.auth.verifyOtp({
+          email: user.email,
+          token,
+          type: "magiclink",
+        });
+      }
+      if (checked.error) throw new Error("Code e-mail incorrect ou expiré.");
+      if (deviceChallenge && deviceChallenge.smsSent) {
+        const smsToken = String(smsCode || "").replace(/\s/g, "");
+        if (!/^\d{4,8}$/.test(smsToken)) {
+          throw new Error("Indiquez aussi le code reçu par SMS.");
+        }
+        const smsRes = await client.auth.verifyOtp({
+          phone: user.phone,
+          token: smsToken,
+          type: "sms",
+        });
+        if (smsRes.error) {
+          throw new Error("Code SMS incorrect ou expiré. Renvoyez les codes, puis saisissez les deux.");
+        }
+      }
+      signedIn = true;
+      await rememberDevice();
+      await loadArtisanFromAuth();
+      if (!currentArtisan) await ensureArtisanProfile();
       await fetchLeads();
       emit();
       return currentArtisan;
@@ -1742,6 +2380,7 @@
       }
       signedIn = false;
       currentArtisan = null;
+      deviceChallenge = null;
       sessionStorage.removeItem(SESSION);
       sessionStorage.removeItem(SESSION_ARTISAN);
     },

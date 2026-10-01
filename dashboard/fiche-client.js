@@ -252,7 +252,7 @@
       li.textContent = "Aucun détail de travaux n’a encore été listé pour ce dossier.";
       ul.appendChild(li);
     } else {
-      lines.forEach((p) => {
+      lines.forEach((p, index) => {
         const li = document.createElement("li");
         const wrap = document.createElement("span");
         const title = document.createElement("strong");
@@ -265,12 +265,21 @@
           wrap.appendChild(detail);
         }
         li.appendChild(wrap);
+        const col = document.createElement("span");
+        col.className = "amt-col";
         if (est.hasPrice && Number(p.amount) > 0) {
           const amt = document.createElement("span");
           amt.className = "amt";
           amt.textContent = money(p.amount);
-          li.appendChild(amt);
+          col.appendChild(amt);
         }
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "btn-price";
+        edit.dataset.editPrice = String(index);
+        edit.textContent = "Modifier le prix";
+        col.appendChild(edit);
+        li.appendChild(col);
         ul.appendChild(li);
       });
     }
@@ -664,7 +673,165 @@
     if (e.target === lightbox) closeLightbox();
   });
 
+  const priceModal = document.getElementById("priceModal");
+  let priceDraft = null;
+  let priceSaving = false;
+
+  function showPriceError(id, msg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function parsePrice(raw) {
+    const n = Number(String(raw || "").replace(/\s/g, "").replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0 || n > 1000000) return null;
+    return Math.round(n * 100) / 100;
+  }
+
+  function openPriceModal(prestation) {
+    priceDraft = {
+      label: prestation.label,
+      previous: Number(prestation.amount) || 0,
+      amount: null,
+    };
+    document.getElementById("priceServiceLabel").textContent = prestation.label;
+    const current = document.getElementById("priceCurrent");
+    if (priceDraft.previous > 0) {
+      current.hidden = false;
+      current.textContent = "Prix affiché aujourd’hui : " + money(priceDraft.previous) + " HT";
+    } else {
+      current.hidden = true;
+      current.textContent = "";
+    }
+    const input = document.getElementById("priceInput");
+    input.value = priceDraft.previous > 0 ? String(priceDraft.previous) : "";
+    document.getElementById("priceReason").value = "";
+    showPriceError("priceAmountError", "");
+    showPriceError("priceReasonError", "");
+    document.getElementById("priceStepAmount").hidden = false;
+    document.getElementById("priceStepReason").hidden = true;
+    priceModal.hidden = false;
+    priceModal.classList.add("is-open");
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 30);
+  }
+
+  function closePriceModal() {
+    if (priceSaving) return;
+    priceModal.classList.remove("is-open");
+    priceModal.hidden = true;
+    priceDraft = null;
+  }
+
+  function reasonCopy(previous, amount) {
+    const label = priceDraft ? priceDraft.label : "";
+    if (previous > 0 && amount > previous) {
+      return {
+        title: "Qu’est-ce qui fait que c’est plus cher ?",
+        lead: "Vous passez de " + money(previous) + " à " + money(amount) + " HT pour « " + label + " ».",
+      };
+    }
+    if (previous > 0 && amount < previous) {
+      return {
+        title: "Qu’est-ce qui fait que c’est moins cher ?",
+        lead: "Vous passez de " + money(previous) + " à " + money(amount) + " HT pour « " + label + " ».",
+      };
+    }
+    return {
+      title: "Un commentaire sur ce prix ?",
+      lead: "Vous retenez " + money(amount) + " HT pour « " + label + " ».",
+    };
+  }
+
+  function goReasonStep() {
+    if (!priceDraft) return;
+    const amount = parsePrice(document.getElementById("priceInput").value);
+    if (amount == null) {
+      showPriceError("priceAmountError", "Indiquez le prix que vous retenez, en euros.");
+      return;
+    }
+    showPriceError("priceAmountError", "");
+    priceDraft.amount = amount;
+    const copy = reasonCopy(priceDraft.previous, amount);
+    document.getElementById("priceReasonTitle").textContent = copy.title;
+    document.getElementById("priceReasonLead").textContent = copy.lead;
+    document.getElementById("priceStepAmount").hidden = true;
+    document.getElementById("priceStepReason").hidden = false;
+    document.getElementById("priceReason").focus();
+  }
+
+  async function submitPrice(withReason) {
+    if (!item || !priceDraft || priceDraft.amount == null || priceSaving) return;
+    const reason = withReason ? document.getElementById("priceReason").value.trim() : "";
+    if (withReason && !reason) {
+      showPriceError(
+        "priceReasonError",
+        "Décrivez ce qui explique ce prix, ou choisissez « Je n’ai pas plus d’avis, c’est le prix »."
+      );
+      return;
+    }
+    showPriceError("priceReasonError", "");
+    priceSaving = true;
+    document.getElementById("priceReasonOk").disabled = true;
+    document.getElementById("priceSkip").disabled = true;
+    const draft = priceDraft;
+    try {
+      const next = await store.recordServicePrice(item.id, {
+        label: draft.label,
+        amountHt: draft.amount,
+        previousAmount: draft.previous,
+        reason,
+      });
+      priceSaving = false;
+      closePriceModal();
+      if (next) render(next);
+      toast(reason ? "Prix enregistré pour ce type de service" : "Prix enregistré, sans commentaire");
+    } catch (err) {
+      priceSaving = false;
+      showPriceError("priceReasonError", (err && err.message) || "Enregistrement impossible.");
+    } finally {
+      document.getElementById("priceReasonOk").disabled = false;
+      document.getElementById("priceSkip").disabled = false;
+    }
+  }
+
+  document.getElementById("aiPrestations").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-edit-price]");
+    if (!btn || !item || !item.estimate) return;
+    const prestation = (item.estimate.prestations || [])[Number(btn.dataset.editPrice)];
+    if (!prestation) return;
+    openPriceModal(prestation);
+  });
+
+  document.getElementById("priceModalClose").addEventListener("click", closePriceModal);
+  document.getElementById("priceCancel").addEventListener("click", closePriceModal);
+  document.getElementById("priceAmountOk").addEventListener("click", goReasonStep);
+  document.getElementById("priceInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      goReasonStep();
+    }
+  });
+  document.getElementById("priceReasonOk").addEventListener("click", () => submitPrice(true));
+  document.getElementById("priceSkip").addEventListener("click", () => submitPrice(false));
+  priceModal.addEventListener("click", (e) => {
+    if (e.target === priceModal) closePriceModal();
+  });
+
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && priceModal.classList.contains("is-open")) {
+      closePriceModal();
+      return;
+    }
     if (e.key === "Escape" && photoAskModal.classList.contains("is-open")) {
       closePhotoAsk();
       return;

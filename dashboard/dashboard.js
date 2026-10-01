@@ -32,8 +32,12 @@
       store.backend === "supabase" ? "Connecté à Supabase" : "Démo locale · pas d’API";
   }
   if (store.backend === "supabase") {
-    hint.textContent = "Compte artisan : vous@atelier.fr (mot de passe : celui défini dans Authentication).";
+    hint.textContent =
+      "Compte créé dans Supabase. Sur un navigateur déjà utilisé, le mot de passe suffit. Sur un nouveau, un code e-mail (et SMS si le compte a un numéro) est demandé.";
     if (resetBtn) resetBtn.hidden = true;
+    const hashParams = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
+    const authError = hashParams.get("error_description");
+    if (authError) hint.textContent = decodeURIComponent(authError.replace(/\+/g, " "));
   }
 
   function applyArtisanBrand() {
@@ -61,7 +65,45 @@
     render();
   }
 
+  function showVerify(info) {
+    const data = info || {};
+    document.getElementById("loginForm").hidden = true;
+    const form = document.getElementById("verifyForm");
+    form.hidden = false;
+    const smsWrap = document.getElementById("smsWrap");
+    const lead = document.getElementById("verifyLead");
+    const hintEl = document.getElementById("verifyHint");
+    const btn = document.getElementById("verifySubmit");
+    const smsInput = document.getElementById("smsCode");
+    smsWrap.hidden = !data.phone;
+    if (smsInput) smsInput.disabled = !data.smsSent;
+    if (data.emailSent) {
+      lead.textContent = data.smsSent
+        ? "Codes envoyés à " + data.email + " et par SMS. Ce navigateur sera enregistré ensuite."
+        : "Code envoyé à " + data.email + ". Ce navigateur sera enregistré ensuite.";
+      btn.textContent = "Valider";
+    } else {
+      lead.textContent = data.phone
+        ? "Ce navigateur n’est pas encore reconnu. Un code va partir par e-mail et par SMS."
+        : "Ce navigateur n’est pas encore reconnu. Un code va partir par e-mail.";
+      btn.textContent = "Recevoir les codes";
+    }
+    const notes = [];
+    if (data.sendError) notes.push(data.sendError);
+    if (data.smsError) notes.push(data.smsError);
+    if (data.emailSent && !data.phone) {
+      notes.push("Pas de SMS pour l’instant : ajoutez un numéro sur l’utilisateur, dans Supabase → Authentication.");
+    }
+    hintEl.textContent = notes.join(" ");
+  }
+
+  function showLogin() {
+    document.getElementById("verifyForm").hidden = true;
+    document.getElementById("loginForm").hidden = false;
+  }
+
   if (await store.hasSession()) showApp();
+  else if (store.deviceChallenge()) showVerify(store.deviceChallenge());
 
   document.getElementById("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -72,11 +114,54 @@
       return;
     }
     try {
-      await store.login(email, pass);
+      const result = await store.login(email, pass);
+      if (result && result.needsCode) {
+        showVerify(result);
+        return;
+      }
       showApp();
     } catch (err) {
       hint.textContent = err.message || "Connexion refusée.";
     }
+  });
+
+  document.getElementById("verifyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const hintEl = document.getElementById("verifyHint");
+    const pending = store.deviceChallenge() || {};
+    const btn = document.getElementById("verifySubmit");
+    btn.disabled = true;
+    try {
+      if (!pending.emailSent) {
+        showVerify(await store.sendLoginCodes());
+        return;
+      }
+      await store.verifyLoginCodes(
+        document.getElementById("emailCode").value,
+        document.getElementById("smsCode").value
+      );
+      showLogin();
+      showApp();
+    } catch (err) {
+      hintEl.textContent = err.message || "Code refusé.";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("resendCodes").addEventListener("click", async () => {
+    const hintEl = document.getElementById("verifyHint");
+    try {
+      showVerify(await store.sendLoginCodes());
+    } catch (err) {
+      hintEl.textContent = err.message || "Envoi impossible.";
+    }
+  });
+
+  document.getElementById("verifyCancel").addEventListener("click", async () => {
+    await store.logout();
+    showLogin();
+    hint.textContent = "Indiquez l’e-mail et le mot de passe du compte.";
   });
 
   document.getElementById("logout").addEventListener("click", async () => {

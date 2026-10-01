@@ -101,8 +101,8 @@ MISSION
 1. Relis description + photos.
 2. Produis une synthèse artisan (besoin, observations, vigilance) et un message client.
 3. Rédige un prédevis non contractuel : la liste concrète de TOUT ce qui sera à réaliser, telle qu’un particulier la comprend.
-4. Prix : UNIQUEMENT si une grille tarifaire de l’artisan est fournie et non vide. Appuie chaque montant sur cette grille, jamais sur un barème marché. Si une ligne n’a pas d’équivalent dans la grille, laisse amount_ht = 0.
-5. S’il n’y a pas de grille : has_price = false, tous les montants à 0, MAIS la liste des travaux reste complète.
+4. Prix : UNIQUEMENT si une grille tarifaire de l’artisan est fournie et non vide, ou si des prix déjà pratiqués ou décidés par l’artisan sont listés (corrections ou anciens devis). Appuie chaque montant sur ces éléments, jamais sur un barème marché. Un prix déjà pratiqué ou décidé prime sur la grille dès que la tâche correspond à ce type de service. Si une ligne n’a d’équivalent ni dans la grille ni dans ces prix, laisse amount_ht = 0.
+5. S’il n’y a ni grille ni prix pratiqué : has_price = false, tous les montants à 0, MAIS la liste des travaux reste complète.
 6. Toute fourchette est indicative, non contractuelle, à confirmer par l’artisan. Ce n’est pas un devis.
 
 SORTIE — UNIQUEMENT un JSON valide, sans markdown.
@@ -468,6 +468,32 @@ function collectClientImages(payload: { images?: unknown; image?: unknown }): Im
   return out;
 }
 
+async function latestServicePrices(
+  supabase: ReturnType<typeof createClient>,
+  artisanId: number
+) {
+  const { data, error } = await supabase
+    .from("dv_service_prices")
+    .select("service_label, amount_ht, reason, created_at")
+    .eq("artisan_id", artisanId)
+    .order("created_at", { ascending: false })
+    .limit(80);
+  if (error || !Array.isArray(data)) return [] as { label: string; amount: number; reason: string }[];
+  const seen = new Set<string>();
+  const rows: { label: string; amount: number; reason: string }[] = [];
+  for (const row of data as { service_label?: string; amount_ht?: number; reason?: string | null }[]) {
+    const label = clip(row.service_label, 120);
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    const amount = Number(row.amount_ht);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    rows.push({ label, amount, reason: clip(row.reason, 300) });
+    if (rows.length >= 40) break;
+  }
+  return rows;
+}
+
 async function loadLeadImages(
   supabase: ReturnType<typeof createClient>,
   photos: Array<Record<string, unknown>>
@@ -755,7 +781,15 @@ Deno.serve(async (req) => {
         artisan = (art.data as typeof artisan) || null;
       }
       const tarif = clip(artisan && artisan.tarif_grid, 8000);
-      const allowPrice = tarif.length > 8;
+      const artisanId = Number((lead as { artisan_id?: number }).artisan_id || 0);
+      const decided = artisanId ? await latestServicePrices(supabase, artisanId) : [];
+      const decidedText = decided
+        .map((row) => {
+          const motif = row.reason ? " Motif : " + row.reason + "." : "";
+          return "- " + row.label + " : " + row.amount + " € HT." + motif;
+        })
+        .join("\n");
+      const allowPrice = tarif.length > 8 || decidedText.length > 0;
       const travaux = ((lead as { dv_lead_travaux?: { travaux?: string }[] }).dv_lead_travaux || [])
         .map((row) => row.travaux)
         .filter(Boolean);
@@ -773,8 +807,19 @@ Deno.serve(async (req) => {
         "Photos : " + (notes.join(" · ") || "aucune"),
         "",
         allowPrice
-          ? "Grille tarifaire de l’artisan (seule base autorisée pour chiffrer) :\n" + tarif
-          : "Grille tarifaire artisan : aucune. Interdiction absolue de donner un prix, une fourchette ou un barème. has_price = false.",
+          ? [
+              tarif.length > 8
+                ? "Grille tarifaire de l’artisan :\n" + tarif
+                : "Grille tarifaire artisan : aucune.",
+              decidedText
+                ? "Prix déjà pratiqués ou décidés par l’artisan pour un type de service — corrections et anciens devis (prioritaires si la tâche correspond) :\n" +
+                  decidedText
+                : "",
+              "Ces éléments sont la seule base autorisée pour chiffrer. Jamais de barème marché.",
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          : "Grille tarifaire artisan : aucune. Aucun prix décidé par l’artisan. Interdiction absolue de donner un prix, une fourchette ou un barème. has_price = false.",
       ].join("\n");
 
       const estimate = (await callClaude(

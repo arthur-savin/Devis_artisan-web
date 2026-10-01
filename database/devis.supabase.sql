@@ -4,6 +4,8 @@
 
 create extension if not exists pgcrypto;
 
+drop table if exists dv_service_prices cascade;
+drop table if exists dv_quote_imports cascade;
 drop table if exists dv_lead_events cascade;
 drop table if exists dv_ai_flags cascade;
 drop table if exists dv_ai_prestations cascade;
@@ -23,6 +25,7 @@ drop function if exists dv_submit_lead(text, text, text, text, numeric, text, te
 drop function if exists dv_submit_lead(text, text, text, text, numeric, text, text, text, text[], text, text, text);
 drop function if exists dv_register_artisan(text, text, text, text, text, text);
 drop function if exists dv_public_artisan(text);
+drop function if exists dv_record_service_price(text, text, numeric, text);
 
 -- ——— Artisan (un atelier) ———
 create table dv_artisans (
@@ -169,6 +172,41 @@ create table dv_lead_events (
 );
 
 create index idx_event_lead on dv_lead_events (lead_id, created_at);
+
+create table dv_quote_imports (
+  id bigint generated always as identity primary key,
+  artisan_id bigint not null references dv_artisans(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  filename text not null,
+  mime_type text not null,
+  size_bytes integer,
+  storage_path text not null,
+  status text not null default 'en_attente'
+    check (status in ('en_attente', 'en_cours', 'extrait', 'erreur')),
+  error_message text,
+  title text,
+  extracted_at timestamptz
+);
+
+create index idx_quote_imports_artisan
+  on dv_quote_imports (artisan_id, created_at desc);
+
+create table dv_service_prices (
+  id bigint generated always as identity primary key,
+  artisan_id bigint not null references dv_artisans(id) on delete cascade,
+  service_label text not null,
+  amount_ht numeric(10,2) not null check (amount_ht > 0),
+  previous_amount_ht numeric(10,2),
+  reason text,
+  detail text,
+  source text not null default 'correction' check (source in ('correction', 'import')),
+  import_id bigint references dv_quote_imports(id) on delete cascade,
+  lead_id bigint references dv_leads(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index idx_service_prices_artisan
+  on dv_service_prices (artisan_id, created_at desc);
 
 -- ——— Triggers ———
 create function dv_set_updated_at()
@@ -468,6 +506,8 @@ alter table dv_ai_estimates enable row level security;
 alter table dv_ai_prestations enable row level security;
 alter table dv_ai_flags enable row level security;
 alter table dv_lead_events enable row level security;
+alter table dv_quote_imports enable row level security;
+alter table dv_service_prices enable row level security;
 
 create policy artisans_select_auth on dv_artisans
   for select to authenticated using (true);
@@ -520,6 +560,20 @@ create policy events_select_auth on dv_lead_events
 create policy events_all_auth on dv_lead_events
   for all to authenticated using (true) with check (true);
 
+create policy service_prices_select_own on dv_service_prices
+  for select to authenticated
+  using (artisan_id in (select id from dv_artisans where auth_user_id = auth.uid()));
+
+create policy quote_imports_select_own on dv_quote_imports
+  for select to authenticated
+  using (artisan_id in (select id from dv_artisans where auth_user_id = auth.uid()));
+create policy quote_imports_insert_own on dv_quote_imports
+  for insert to authenticated
+  with check (artisan_id in (select id from dv_artisans where auth_user_id = auth.uid()));
+create policy quote_imports_delete_own on dv_quote_imports
+  for delete to authenticated
+  using (artisan_id in (select id from dv_artisans where auth_user_id = auth.uid()));
+
 grant usage on schema public to anon, authenticated;
 grant select on dv_artisans to authenticated;
 grant insert on dv_leads, dv_lead_travaux, dv_photos, dv_lead_events to anon, authenticated;
@@ -565,6 +619,124 @@ $$;
 
 grant execute on function dv_public_refine_lead(text, text) to anon, authenticated;
 
+create or replace function dv_record_service_price(
+  p_lead_public_id text,
+  p_label text,
+  p_amount numeric,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_artisan_id bigint;
+  v_lead_id bigint;
+  v_estimate_id bigint;
+  v_prev numeric;
+  v_had_price boolean;
+  v_sum numeric;
+  v_delta numeric;
+  v_label text := left(nullif(btrim(coalesce(p_label, '')), ''), 200);
+  v_amount numeric := round(p_amount, 2);
+  v_reason text := left(nullif(btrim(coalesce(p_reason, '')), ''), 500);
+  v_amount_txt text;
+begin
+  if v_uid is null then
+    raise exception 'Connexion requise pour enregistrer un prix.';
+  end if;
+  if v_label is null then
+    raise exception 'Type de service manquant.';
+  end if;
+  if v_amount is null or v_amount <= 0 or v_amount > 1000000 then
+    raise exception 'Indiquez un prix valide.';
+  end if;
+
+  select id into v_artisan_id
+  from dv_artisans
+  where auth_user_id = v_uid;
+
+  if v_artisan_id is null then
+    raise exception 'Aucun atelier lié à ce compte.';
+  end if;
+
+  select id into v_lead_id
+  from dv_leads
+  where public_id = p_lead_public_id
+    and artisan_id = v_artisan_id;
+
+  if v_lead_id is null then
+    raise exception 'Demande introuvable.';
+  end if;
+
+  select e.id, coalesce(e.has_price, false)
+    into v_estimate_id, v_had_price
+  from dv_ai_estimates e
+  where e.lead_id = v_lead_id
+  order by e.created_at desc
+  limit 1;
+
+  if v_estimate_id is not null then
+    select amount_ht into v_prev
+    from dv_ai_prestations
+    where estimate_id = v_estimate_id
+      and label = v_label
+    order by sort_order
+    limit 1;
+
+    update dv_ai_prestations
+    set amount_ht = v_amount
+    where estimate_id = v_estimate_id
+      and label = v_label;
+
+    if found then
+      if v_had_price then
+        v_delta := v_amount - coalesce(v_prev, 0);
+        update dv_ai_estimates
+        set
+          has_price = true,
+          price_min_ht = greatest(0, coalesce(price_min_ht, 0) + v_delta),
+          price_max_ht = greatest(0, coalesce(price_max_ht, 0) + v_delta)
+        where id = v_estimate_id;
+      else
+        select coalesce(sum(amount_ht), 0) into v_sum
+        from dv_ai_prestations
+        where estimate_id = v_estimate_id;
+        update dv_ai_estimates
+        set has_price = true, price_min_ht = v_sum, price_max_ht = v_sum
+        where id = v_estimate_id;
+      end if;
+    end if;
+  end if;
+
+  insert into dv_service_prices (
+    artisan_id, service_label, amount_ht, previous_amount_ht, reason, lead_id
+  ) values (
+    v_artisan_id, v_label, v_amount, v_prev, v_reason, v_lead_id
+  );
+
+  v_amount_txt := regexp_replace(
+    replace(trim(to_char(v_amount, 'FM999999990.00')), '.', ','),
+    ',00$',
+    ''
+  );
+
+  insert into dv_lead_events (lead_id, kind, message)
+  values (
+    v_lead_id,
+    'tarif',
+    'Prix artisan — ' || v_label || ' : ' || v_amount_txt || ' € HT'
+      || case when v_reason is not null then ' — ' || v_reason else '' end
+  );
+end;
+$$;
+
+grant select on dv_service_prices to authenticated;
+grant select, insert, delete on dv_quote_imports to authenticated;
+grant execute on function dv_record_service_price(text, text, numeric, text) to authenticated;
+
 -- Realtime (liste dashboard en live)
 do $$
 begin
@@ -593,3 +765,53 @@ create policy chantier_photos_select_auth
 create policy chantier_photos_delete_auth
   on storage.objects for delete to authenticated
   using (bucket_id = 'chantier-photos');
+
+insert into storage.buckets (id, name, public)
+values ('devis-archives', 'devis-archives', false)
+on conflict (id) do nothing;
+
+create policy devis_archives_insert_own
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'devis-archives'
+    and (storage.foldername(name))[1] = (
+      select id::text from dv_artisans where auth_user_id = auth.uid() limit 1
+    )
+  );
+
+create policy devis_archives_select_own
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'devis-archives'
+    and (storage.foldername(name))[1] = (
+      select id::text from dv_artisans where auth_user_id = auth.uid() limit 1
+    )
+  );
+
+create policy devis_archives_delete_own
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'devis-archives'
+    and (storage.foldername(name))[1] = (
+      select id::text from dv_artisans where auth_user_id = auth.uid() limit 1
+    )
+  );
+
+create table if not exists dv_trusted_devices (
+  id bigint generated always as identity primary key,
+  auth_user_id uuid not null,
+  device_id text not null,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  unique (auth_user_id, device_id)
+);
+
+alter table dv_trusted_devices enable row level security;
+
+drop policy if exists trusted_devices_own on dv_trusted_devices;
+create policy trusted_devices_own on dv_trusted_devices
+  for all to authenticated
+  using (auth_user_id = auth.uid())
+  with check (auth_user_id = auth.uid());
+
+grant select, insert, update, delete on dv_trusted_devices to authenticated;
