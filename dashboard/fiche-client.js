@@ -618,6 +618,7 @@
       window.location.href = dash();
     } catch (err) {
       btn.disabled = false;
+      toast(err.message || "Suppression impossible.");
     }
   });
 

@@ -14,6 +14,7 @@
   const selectAllLabel = document.getElementById("selectAllLabel");
   const bulkStatusEl = document.getElementById("bulkStatus");
   const bulkHideEl = document.getElementById("bulkHide");
+  const hideNote = document.getElementById("hideNote");
 
   let filter = "tous";
   let query = "";
@@ -250,16 +251,28 @@
     await hideIds(ids);
   });
 
+  function showHideError(message) {
+    if (!hideNote) return;
+    if (!message) {
+      hideNote.hidden = true;
+      hideNote.textContent = "";
+      return;
+    }
+    hideNote.hidden = false;
+    hideNote.textContent = message;
+  }
+
   async function hideIds(ids) {
     if (!ids.length || busy) return;
     busy = true;
+    showHideError("");
     syncBulk();
     try {
       await store.hideLeads(ids);
       ids.forEach((id) => selected.delete(id));
       render();
     } catch (err) {
-      console.warn(err && err.message ? err.message : err);
+      showHideError(err && err.message ? err.message : "Suppression impossible.");
     } finally {
       busy = false;
       syncBulk();

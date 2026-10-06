@@ -5,6 +5,8 @@
  */
 (function (global) {
   const KEY = "artisan-devis.requests.v1";
+  const HIDDEN_IDS_KEY = "artisan-devis.hidden-ids.v1";
+  const MASK_KIND = "masque";
   const ARTISANS_KEY = "artisan-devis.artisans.v1";
   const SERVICE_PRICES_KEY = "artisan-devis.service-prices.v1";
   const IMPORTS_KEY = "artisan-devis.quote-imports.v1";
@@ -159,6 +161,30 @@
   function writeLocal(list) {
     localStorage.setItem(KEY, JSON.stringify(list));
     global.dispatchEvent(new CustomEvent("devis:change"));
+  }
+
+  function readHiddenIds() {
+    try {
+      const data = JSON.parse(localStorage.getItem(HIDDEN_IDS_KEY) || "[]");
+      return new Set(Array.isArray(data) ? data.map((id) => String(id)) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function rememberHiddenIds(ids) {
+    const hidden = readHiddenIds();
+    (ids || []).forEach((id) => {
+      if (id) hidden.add(String(id));
+    });
+    localStorage.setItem(HIDDEN_IDS_KEY, JSON.stringify([...hidden]));
+  }
+
+  function isConcealed(item) {
+    if (!item) return false;
+    if (item.hiddenAt) return true;
+    if (readHiddenIds().has(String(item.id))) return true;
+    return (item.events || []).some((ev) => ev && ev.kind === MASK_KIND);
   }
 
   function readServicePrices() {
@@ -712,8 +738,46 @@
       error = retry.error;
     }
     throwIf(error, "Impossible de lire les demandes.");
-    cache = (data || []).map(mapLead);
+    cache = await applyServerMasks((data || []).map(mapLead));
     return cache;
+  }
+
+  async function applyServerMasks(leads) {
+    if (!client || !leads.length) return leads;
+    const { data, error } = await client.from("dv_lead_events").select("lead_id").eq("kind", MASK_KIND);
+    if (error || !data) return leads;
+    const masked = new Set(data.map((row) => String(row.lead_id)));
+    if (!masked.size) return leads;
+    return leads.map((item) => {
+      if (item.dbId == null || !masked.has(String(item.dbId))) return item;
+      const events = item.events || [];
+      if (events.some((ev) => ev && ev.kind === MASK_KIND)) return item;
+      return {
+        ...item,
+        events: events.concat([
+          { createdAt: Date.now(), kind: MASK_KIND, message: "Retirée du tableau" },
+        ]),
+      };
+    });
+  }
+
+  async function insertMaskEvents(publicIds) {
+    if (!client) return false;
+    const wanted = new Set((publicIds || []).map((id) => String(id)));
+    const rows = cache
+      .filter((item) => wanted.has(String(item.id)) && item.dbId != null)
+      .map((item) => ({
+        lead_id: item.dbId,
+        kind: MASK_KIND,
+        message: "Retirée du tableau",
+      }));
+    if (!rows.length) return false;
+    const { error } = await client.from("dv_lead_events").insert(rows);
+    if (error) {
+      console.warn(error.message || error);
+      return false;
+    }
+    return true;
   }
 
   function shrinkImageBlob(blob) {
@@ -1561,7 +1625,7 @@
         Store.backend === "supabase" && !localOnly
           ? cache.slice()
           : readLocal().slice().sort((a, b) => b.createdAt - a.createdAt);
-      return raw.map(normalize).filter((item) => !item.hiddenAt && belongsToArtisan(item, artisan));
+      return raw.map(normalize).filter((item) => item && !isConcealed(item) && belongsToArtisan(item, artisan));
     },
 
     hideConfirmMessage:
@@ -1585,7 +1649,9 @@
         Store.backend === "supabase" && !localOnly
           ? cache.find((x) => x.id === key || String(x.dbId) === key)
           : readLocal().find((x) => x.id === key);
-      return normalize(raw || null);
+      const mapped = normalize(raw || null);
+      if (!mapped || isConcealed(mapped)) return null;
+      return mapped;
     },
 
     async hydratePhotos(item) {
@@ -1723,16 +1789,23 @@
 
     async hideLeads(ids) {
       lastError = null;
+      const list = [...new Set((ids || []).map((id) => String(id || "")).filter(Boolean))];
+      if (!list.length) return;
       try {
-        await Store.updateLeads(ids, { hiddenAt: Date.now() });
+        await Store.updateLeads(list, { hiddenAt: Date.now() });
       } catch (err) {
         const msg = err && err.message ? String(err.message) : "";
-        if (/hidden_at/i.test(msg)) {
-          throw new Error(
-            "La colonne de masquage n’est pas encore en base. Exécutez la migration hidden_at dans le SQL Editor Supabase."
-          );
+        if (!/hidden_at|colonne de masquage/i.test(msg)) throw err;
+        // La colonne hidden_at n’est pas encore en base : on garde la demande
+        // (photos, IA) et on la retire du tableau via un événement « masque ».
+        await insertMaskEvents(list);
+        rememberHiddenIds(list);
+        try {
+          await fetchLeads();
+        } catch (fetchErr) {
+          console.warn(fetchErr && fetchErr.message ? fetchErr.message : fetchErr);
         }
-        throw err;
+        emit();
       }
     },
 
@@ -1765,8 +1838,12 @@
       }
 
       if (!Object.keys(dbPatch).length) return;
-      const { error } = await client.from("dv_leads").update(dbPatch).in("public_id", list);
-      throwIf(error, "Mise à jour impossible.");
+      const updated = await client.from("dv_leads").update(dbPatch).in("public_id", list).select("public_id");
+      throwIf(updated.error, "Mise à jour impossible.");
+      const got = new Set((updated.data || []).map((row) => String(row.public_id)));
+      if (list.some((id) => !got.has(id))) {
+        throw new Error("La demande n’a pas pu être mise à jour.");
+      }
       await fetchLeads();
       emit();
     },

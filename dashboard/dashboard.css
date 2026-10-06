@@ -223,6 +223,17 @@ body.dash {
   cursor: not-allowed;
 }
 
+.hide-note {
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.hide-note[hidden] { display: none !important; }
+
 .list { display: flex; flex-direction: column; }
 
 .row-wrap {
