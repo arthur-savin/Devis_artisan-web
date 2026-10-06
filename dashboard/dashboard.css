@@ -494,9 +494,15 @@ body.dash {
 
 .ia-page {
   padding: 22px;
-  max-width: 960px;
+  max-width: 1280px;
   display: grid;
   gap: 16px;
+}
+.ia-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
 }
 .ia-intro {
   font-size: 0.95rem;
@@ -681,6 +687,7 @@ body.dash {
   .side-foot { display: none; }
   .stats { grid-template-columns: 1fr; }
   .workspace { grid-template-columns: 1fr; }
+  .ia-cols { grid-template-columns: 1fr; }
   .bulk-tools { width: 100%; }
   .bulk-tools select,
   .bulk-hide { flex: 1; }
