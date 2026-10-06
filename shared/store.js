@@ -6,6 +6,7 @@
 (function (global) {
   const KEY = "artisan-devis.requests.v1";
   const HIDDEN_IDS_KEY = "artisan-devis.hidden-ids.v1";
+  const LEAD_MEMORY_KEY = "artisan-devis.lead-memory.v1";
   const MASK_KIND = "masque";
   const ARTISANS_KEY = "artisan-devis.artisans.v1";
   const SERVICE_PRICES_KEY = "artisan-devis.service-prices.v1";
@@ -185,6 +186,188 @@
     if (item.hiddenAt) return true;
     if (readHiddenIds().has(String(item.id))) return true;
     return (item.events || []).some((ev) => ev && ev.kind === MASK_KIND);
+  }
+
+  function clipText(value, max) {
+    const text = String(value || "").trim();
+    if (text.length <= max) return text;
+    return text.slice(0, max - 1) + "…";
+  }
+
+  function findStoredLead(id) {
+    const key = String(id || "");
+    if (!key) return null;
+    const cached = cache.find((item) => String(item.id) === key || String(item.dbId) === key);
+    if (cached) return cached;
+    return readLocal().find((item) => String(item.id) === key) || null;
+  }
+
+  function priceLineKey(label, amount) {
+    return String(label || "").trim().toLowerCase() + "|" + String(Math.round(Number(amount) * 100) / 100);
+  }
+
+  function correctedLines(item) {
+    const labels = new Set();
+    (item.events || []).forEach((ev) => {
+      if (!ev || ev.kind !== "tarif") return;
+      const match = String(ev.message || "").match(/^Prix artisan — (.+?) :/);
+      if (match) labels.add(match[1].trim().toLowerCase());
+    });
+    return ((item.estimate && item.estimate.prestations) || [])
+      .filter((row) => row && labels.has(String(row.label || "").trim().toLowerCase()))
+      .map((row) => ({
+        label: String(row.label || "").trim(),
+        amount: Math.round(Number(row.amount) * 100) / 100,
+        reason: clipText(row.detail, 300),
+      }))
+      .filter((row) => row.label && Number.isFinite(row.amount) && row.amount > 0);
+  }
+
+  function readLeadMemory() {
+    try {
+      const data = JSON.parse(localStorage.getItem(LEAD_MEMORY_KEY) || "[]");
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function pricesLinkedTo(item) {
+    return readServicePrices()
+      .filter(
+        (row) =>
+          String(row.leadId) === String(item.id) ||
+          (item.dbId != null && String(row.leadId) === String(item.dbId))
+      )
+      .map((row) => ({
+        label: row.serviceLabel || "",
+        amount: Number(row.amountHt),
+        reason: row.reason || "",
+      }));
+  }
+
+  function mergePriceLines(groups) {
+    const seen = new Set();
+    const out = [];
+    groups.flat().forEach((line) => {
+      if (!line || !line.label || !Number.isFinite(Number(line.amount))) return;
+      const key = priceLineKey(line.label, line.amount);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({
+        label: String(line.label).trim(),
+        amount: Math.round(Number(line.amount) * 100) / 100,
+        reason: clipText(line.reason, 300),
+      });
+    });
+    return out;
+  }
+
+  async function linkedPriceLines(item) {
+    const groups = [correctedLines(item), pricesLinkedTo(item)];
+    if (!writesLocally() && client && item.dbId != null) {
+      const res = await client
+        .from("dv_service_prices")
+        .select("service_label, amount_ht, reason")
+        .eq("lead_id", item.dbId);
+      if (!res.error && res.data) {
+        groups.push(
+          res.data.map((row) => ({
+            label: row.service_label || "",
+            amount: Number(row.amount_ht),
+            reason: row.reason || "",
+          }))
+        );
+      }
+    }
+    return mergePriceLines(groups);
+  }
+
+  function archiveLeadMemory(item, prices) {
+    const photos = item.photos || [];
+    const snap = {
+      id: item.id,
+      dbId: item.dbId || null,
+      savedAt: Date.now(),
+      travaux: item.travaux || [],
+      details: clipText(item.details, 2000),
+      notesInternes: clipText(item.notesInternes, 2000),
+      observations: clipText(item.estimate && item.estimate.observations, 2000),
+      prixReelHt: item.prixReelHt != null ? Number(item.prixReelHt) : null,
+      photos: photos.map((photo) => ({
+        title: photo.title || photo.name || "",
+        kind: photo.kind || "photo",
+      })),
+      prices: prices || [],
+    };
+    const next = readLeadMemory().filter((row) => String(row.id) !== String(item.id));
+    next.push(snap);
+    localStorage.setItem(LEAD_MEMORY_KEY, JSON.stringify(next));
+  }
+
+  async function knownPriceKeys(item) {
+    const keys = readServicePrices()
+      .filter((row) => String(row.leadId) === String(item.id) || (item.dbId != null && String(row.leadId) === String(item.dbId)))
+      .map((row) => priceLineKey(row.serviceLabel, row.amountHt));
+    if (writesLocally() || !client || item.dbId == null) return new Set(keys);
+    const res = await client
+      .from("dv_service_prices")
+      .select("service_label, amount_ht")
+      .eq("lead_id", item.dbId);
+    if (res.error || !res.data) return new Set(keys);
+    res.data.forEach((row) => keys.push(priceLineKey(row.service_label, row.amount_ht)));
+    return new Set(keys);
+  }
+
+  async function keepCorrectedPrices(item) {
+    const lines = correctedLines(item);
+    if (!lines.length) return;
+    const known = await knownPriceKeys(item);
+    const missing = lines.filter((line) => !known.has(priceLineKey(line.label, line.amount)));
+    if (!missing.length) return;
+    if (writesLocally() || !client || item.dbId == null) {
+      const artisan = currentArtisan;
+      writeServicePrices(
+        readServicePrices().concat(
+          missing.map((line) => ({
+            id: "sp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+            artisanId: artisan ? artisan.id : DEFAULT_ARTISAN_ID,
+            serviceLabel: line.label,
+            amountHt: line.amount,
+            previousAmountHt: null,
+            reason: line.reason || null,
+            leadId: item.id,
+            createdAt: Date.now(),
+          }))
+        )
+      );
+      return;
+    }
+    for (const line of missing) {
+      const rpc = await client.rpc("dv_record_service_price", {
+        p_lead_public_id: item.id,
+        p_label: line.label,
+        p_amount: line.amount,
+        p_reason: line.reason || null,
+      });
+      if (rpc.error) console.warn(rpc.error.message || rpc.error);
+    }
+  }
+
+  async function preserveReusableLeadData(ids) {
+    for (const id of ids) {
+      const item = findStoredLead(id);
+      if (!item) continue;
+      let prices = [];
+      try {
+        await keepCorrectedPrices(item);
+        prices = await linkedPriceLines(item);
+      } catch (err) {
+        console.warn(err && err.message ? err.message : err);
+        prices = mergePriceLines([correctedLines(item), pricesLinkedTo(item)]);
+      }
+      archiveLeadMemory(item, prices);
+    }
   }
 
   function readServicePrices() {
@@ -1791,6 +1974,7 @@
       lastError = null;
       const list = [...new Set((ids || []).map((id) => String(id || "")).filter(Boolean))];
       if (!list.length) return;
+      await preserveReusableLeadData(list);
       try {
         await Store.updateLeads(list, { hiddenAt: Date.now() });
       } catch (err) {
