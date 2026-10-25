@@ -22,39 +22,51 @@
   <div id="page" hidden>
     <header class="hero">
       <div class="hero-inner">
-        <p class="kicker" id="kicker">Artisan</p>
-        <h1 id="name">—</h1>
-        <p class="tag" id="tag">—</p>
+        <div class="id">
+          <span class="mono" id="initials" aria-hidden="true">A</span>
+          <div>
+            <h1 id="name">—</h1>
+            <p class="tag" id="tag">—</p>
+          </div>
+        </div>
         <p class="bio" id="bio"></p>
         <div class="cta-row">
-          <a class="btn" id="ctaDevis" href="../widget/index.html">Demander un devis</a>
+          <a class="btn" id="ctaDevis" href="../widget/index.html">Demander mon devis gratuit</a>
           <a class="btn btn-ghost" id="ctaTel" hidden href="tel:"></a>
         </div>
+        <ul class="trust">
+          <li>Gratuit et sans engagement</li>
+          <li>Réponse sous 24 h ouvrées</li>
+          <li>Pas besoin de déplacement pour estimer</li>
+        </ul>
       </div>
     </header>
 
     <main class="body">
       <section class="steps">
-        <h2>Comment ça se passe</h2>
+        <h2>Votre devis en trois étapes</h2>
+        <p class="steps-lead">Deux minutes depuis votre téléphone. Vous n’avez rien à préparer.</p>
         <ol>
           <li>
-            <strong>Vous décrivez le chantier</strong>
-            <span>Type de travaux, photos, quelques précisions. Deux minutes, sans engagement.</span>
+            <strong>Vous expliquez votre besoin</strong>
+            <span>Avec vos mots, à l’écrit ou à la voix. Où, quoi, depuis quand.</span>
           </li>
           <li>
-            <strong>L’atelier reçoit la demande</strong>
-            <span>Elle arrive dans le dashboard, avec une première lecture du dossier.</span>
+            <strong>Vous prenez quelques photos</strong>
+            <span>On vous guide une photo à la fois. Rien à démonter, ne prenez aucun risque.</span>
           </li>
           <li>
             <strong>On vous rappelle sous 24 h</strong>
-            <span>Pour convenir d’un passage et affiner le devis sur place.</span>
+            <span>Avec une première estimation, pour convenir ensemble de la suite.</span>
           </li>
         </ol>
+        <a class="btn btn-dark" id="ctaDevis2" href="../widget/index.html">Commencer ma demande</a>
       </section>
     </main>
 
     <footer class="foot">
       <p id="footName">—</p>
+      <p class="foot-legal">L’estimation en ligne est indicative. Le devis définitif est établi par l’artisan.</p>
       <p><a href="../dashboard/index.html">Espace artisan</a></p>
     </footer>
   </div>

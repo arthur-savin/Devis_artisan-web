@@ -3,43 +3,58 @@ body {
   color: #F7F1E4;
 }
 
+[hidden] { display: none !important; }
+
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
+
 .hero {
-  background:
-    radial-gradient(900px 420px at 20% -10%, rgba(244, 196, 48, 0.2), transparent 55%),
-    var(--navy);
-  padding: 48px 20px 40px;
+  padding: 64px 20px 56px;
 }
 
 .hero-inner {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
-.kicker {
-  font-size: 0.72rem;
+.id {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.mono {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 20px;
+  background: var(--gold);
+  color: var(--navy);
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--gold);
-  margin-bottom: 10px;
+  letter-spacing: -0.04em;
 }
 
 h1 {
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
-  letter-spacing: -0.05em;
-  margin-bottom: 8px;
+  font-size: clamp(2.1rem, 6vw, 3.4rem);
+  line-height: 1;
+  letter-spacing: -0.055em;
+  margin-bottom: 6px;
 }
 
 .tag {
   color: rgba(247, 241, 228, 0.72);
   font-size: 1.05rem;
-  margin-bottom: 14px;
 }
 
 .bio {
-  max-width: 48ch;
-  color: rgba(247, 241, 228, 0.82);
-  margin-bottom: 22px;
+  max-width: 52ch;
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: rgba(247, 241, 228, 0.86);
+  margin-bottom: 28px;
 }
 
 .bio:empty { display: none; }
@@ -48,64 +63,104 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  margin-bottom: 26px;
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   appearance: none;
   text-decoration: none;
   border-radius: 12px;
-  padding: 12px 18px;
+  padding: 14px 22px;
+  font-size: 1rem;
   font-weight: 700;
   background: var(--gold);
   color: var(--navy);
 }
 
+.btn:hover { background: #FFD24A; }
+
 .btn-ghost {
   background: transparent;
-  color: var(--gold);
-  border: 1.5px solid rgba(244, 196, 48, 0.45);
+  color: #F7F1E4;
+  border: 1.5px solid rgba(247, 241, 228, 0.25);
 }
+
+.btn-ghost:hover { background: transparent; border-color: rgba(247, 241, 228, 0.5); }
+
+.btn-dark { background: var(--navy); color: var(--gold); margin-top: 28px; }
+.btn-dark:hover { background: var(--navy-soft); }
+
+.trust {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  font-size: 0.9rem;
+  color: rgba(247, 241, 228, 0.68);
+}
+
+.trust li { display: flex; align-items: center; gap: 8px; }
+.trust li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
 
 .body {
   background: var(--paper);
   color: var(--ink);
   border-radius: 28px 28px 0 0;
-  padding: 32px 20px 48px;
-  min-height: 40vh;
+  padding: 56px 20px 64px;
 }
 
 .steps {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
 .steps h2 {
-  font-size: 1.2rem;
-  letter-spacing: -0.03em;
-  margin-bottom: 16px;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  margin-bottom: 8px;
 }
+
+.steps-lead { color: var(--muted); margin-bottom: 28px; font-size: 1.02rem; }
 
 .steps ol {
   list-style: none;
-  display: grid;
-  gap: 12px;
+  counter-reset: s;
+  border-top: 2px solid var(--ink);
 }
 
 .steps li {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px 18px;
+  counter-increment: s;
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  column-gap: 12px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.steps strong { display: block; margin-bottom: 4px; }
-.steps span { color: var(--muted); font-size: 0.92rem; }
+.steps li::before {
+  content: counter(s);
+  grid-row: span 2;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  color: var(--gold-deep);
+}
+
+.steps strong { display: block; font-size: 1.08rem; letter-spacing: -0.02em; margin-bottom: 4px; }
+.steps span { color: var(--muted); line-height: 1.5; }
 
 .foot {
-  padding: 18px 20px 28px;
+  padding: 24px 20px 32px;
   text-align: center;
   color: rgba(247, 241, 228, 0.55);
   font-size: 0.82rem;
+  display: grid;
+  gap: 6px;
 }
 
 .foot a { color: var(--gold); }
@@ -132,3 +187,10 @@ h1 {
 
 .missing-card p { color: var(--muted); margin: 8px 0 16px; }
 .missing-card a { color: var(--gold-deep); font-weight: 700; }
+
+@media (max-width: 520px) {
+  .hero { padding: 40px 16px 40px; }
+  .body { padding: 40px 16px 48px; }
+  .mono { width: 56px; height: 56px; border-radius: 16px; font-size: 1.25rem; }
+  .cta-row .btn { flex: 1 1 100%; }
+}
