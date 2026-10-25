@@ -17,11 +17,18 @@
   const q = store.artisanQuery(artisan);
   const where = [artisan.metier, artisan.ville].filter(Boolean).join(" · ");
   document.title = artisan.displayName + " — " + (artisan.metier || "Artisan");
-  document.getElementById("kicker").textContent = artisan.metier || "Artisan";
+  const initials = String(artisan.displayName || "A")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+  document.getElementById("initials").textContent = initials || "A";
   document.getElementById("name").textContent = artisan.displayName;
   document.getElementById("tag").textContent = where || "Devis en ligne";
   document.getElementById("bio").textContent = artisan.bio || "";
   document.getElementById("ctaDevis").href = "../widget/index.html" + q;
+  document.getElementById("ctaDevis2").href = "../widget/index.html" + q;
   document.getElementById("footName").textContent = artisan.displayName;
 
   const tel = (artisan.telephone || "").replace(/\s/g, "");

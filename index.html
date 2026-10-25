@@ -3,99 +3,291 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Outil de devis — Widget &amp; dashboard</title>
+  <title>Devis artisan — des demandes de devis complètes, photos comprises</title>
+  <meta name="description" content="Vos clients décrivent leur besoin et prennent cinq photos guidées. Vous recevez un dossier clair avec une première estimation, prêt à chiffrer." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="shared/theme.css" />
   <style>
-    body {
-      background:
-        radial-gradient(1000px 380px at 50% -8%, rgba(244, 196, 48, 0.16), transparent 60%),
-        var(--navy);
-      color: #F7F1E4;
+    :root {
+      --night: #0D1B2E;
+      --night-2: #14263D;
+      --ivory: #F7F1E4;
+      --ivory-dim: rgba(247, 241, 228, 0.68);
+      --rule: rgba(247, 241, 228, 0.14);
     }
-    .wrap {
-      max-width: 880px;
-      margin: 0 auto;
-      padding: 40px 20px 56px;
+    body { background: var(--night); color: var(--ivory); }
+    a { color: inherit; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
+
+    /* En-tête */
+    .bar { display: flex; align-items: center; gap: 20px; padding-top: 22px; padding-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -0.02em; }
+    .bolt { width: 34px; height: 34px; border-radius: 10px; background: var(--gold); color: var(--night); display: grid; place-items: center; }
+    .bar nav { margin-left: auto; display: flex; align-items: center; gap: 22px; font-size: 0.92rem; }
+    .bar nav a { text-decoration: none; color: var(--ivory-dim); }
+    .bar nav a:hover { color: var(--ivory); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border-radius: 12px; padding: 13px 20px; font-weight: 700; font-size: 0.98rem;
+      text-decoration: none; border: 0; cursor: pointer;
     }
-    .mark {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-    .bolt {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      background: var(--gold);
-      color: var(--navy);
-      display: grid;
-      place-items: center;
-    }
-    h1 { font-size: 1.8rem; letter-spacing: -0.04em; margin-bottom: 8px; }
-    .intro { color: rgba(247, 241, 228, 0.7); max-width: 54ch; margin-bottom: 28px; }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    a.card {
-      display: block;
-      background: var(--paper);
-      color: var(--ink);
-      text-decoration: none;
-      border-radius: 20px;
-      padding: 22px 20px;
-      box-shadow: var(--shadow);
-      transition: transform .2s var(--ease);
-    }
-    a.card:hover { transform: translateY(-2px); }
-    a.card span {
-      display: inline-block;
-      font-size: 0.72rem;
+    .btn-gold { background: var(--gold); color: var(--night); }
+    .btn-gold:hover { background: #FFD24A; }
+    .btn-line { border: 1.5px solid var(--rule); color: var(--ivory); }
+    .btn-line:hover { border-color: rgba(247, 241, 228, 0.4); }
+    .bar .btn { padding: 10px 16px; font-size: 0.9rem; }
+
+    /* Hero */
+    .hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; padding-top: 56px; padding-bottom: 88px; }
+    .hero h1 {
+      font-size: clamp(2.6rem, 6vw, 4.6rem);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--gold-deep);
-      margin-bottom: 8px;
+      margin-bottom: 24px;
+      max-width: 11ch;
     }
-    a.card h2 { font-size: 1.2rem; margin-bottom: 6px; }
-    a.card p { color: var(--muted); font-size: 0.9rem; }
-    .note {
-      margin-top: 22px;
-      font-size: 0.8rem;
-      color: rgba(247, 241, 228, 0.5);
-      max-width: 62ch;
+    .hero .lead { font-size: 1.15rem; line-height: 1.55; color: var(--ivory-dim); max-width: 46ch; margin-bottom: 32px; }
+    .hero .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+    .proof { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 0.9rem; color: var(--ivory-dim); list-style: none; }
+    .proof li { display: flex; align-items: center; gap: 8px; }
+    .proof li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
+
+    /* Maquette produit : 5 photos -> estimation */
+    .demo { position: relative; }
+    .sheet {
+      background: var(--ivory); color: var(--ink); border-radius: 22px; padding: 22px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      transform: rotate(-1.2deg);
     }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .sheet-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+    .sheet-head strong { font-size: 1.02rem; letter-spacing: -0.02em; }
+    .sheet-head span { font-size: 0.8rem; color: var(--muted); }
+    .need { font-size: 0.92rem; line-height: 1.45; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+    .shots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+    .shot { aspect-ratio: 3 / 4; border-radius: 10px; position: relative; overflow: hidden; background: #E9E1D0; border: 1px dashed #CBBFA6; }
+    .shot i { position: absolute; inset: 0; border-radius: inherit; opacity: 0; }
+    .shot b { position: absolute; left: 4px; right: 4px; bottom: 4px; font-size: 0.6rem; font-weight: 600; color: #fff; opacity: 0; background: rgba(13, 27, 46, 0.62); border-radius: 5px; padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shot:nth-child(1) i { background: linear-gradient(160deg, #8FA3B8, #4E6378 70%, #33465A); }
+    .shot:nth-child(2) i { background: radial-gradient(circle at 40% 45%, #F2D99A 0 14%, #B49155 15% 22%, #6D5634 23% 100%); }
+    .shot:nth-child(3) i { background: linear-gradient(90deg, #D8CBB2 0 30%, #9A8A70 30% 34%, #D8CBB2 34% 100%); }
+    .shot:nth-child(4) i { background: linear-gradient(180deg, #C9B99B 0 55%, #7D6B52 55% 100%); }
+    .shot:nth-child(5) i { background: linear-gradient(200deg, #5C7186, #22344A); }
+    .shot:nth-child(5)::after { content: ""; position: absolute; top: 50%; left: 50%; width: 0; height: 0; transform: translate(-35%, -50%); border-left: 12px solid #fff; border-top: 8px solid transparent; border-bottom: 8px solid transparent; opacity: 0; }
+    .estimate { border-top: 1px solid var(--line); padding-top: 12px; }
+    .estimate p { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+    .estimate ul { list-style: none; display: grid; gap: 6px; margin-bottom: 12px; }
+    .estimate li { display: flex; justify-content: space-between; font-size: 0.9rem; gap: 12px; }
+    .estimate li span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; background: var(--night); color: var(--ivory); border-radius: 12px; padding: 12px 14px; }
+    .total strong { font-size: 1.25rem; letter-spacing: -0.03em; color: var(--gold); font-variant-numeric: tabular-nums; }
+    .total span { font-size: 0.85rem; }
+    .stamp {
+      position: absolute; right: -14px; top: -18px; background: var(--gold); color: var(--night);
+      border-radius: 999px; padding: 9px 14px; font-weight: 700; font-size: 0.85rem;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3); transform: rotate(4deg);
+    }
+
+    /* Une seule animation : les photos arrivent, puis l'estimation */
+    @media (prefers-reduced-motion: no-preference) {
+      .shot i, .shot b, .shot:nth-child(5)::after { animation: show 0.45s var(--ease) forwards; }
+      .shot:nth-child(1) i, .shot:nth-child(1) b { animation-delay: 0.3s; }
+      .shot:nth-child(2) i, .shot:nth-child(2) b { animation-delay: 0.55s; }
+      .shot:nth-child(3) i, .shot:nth-child(3) b { animation-delay: 0.8s; }
+      .shot:nth-child(4) i, .shot:nth-child(4) b { animation-delay: 1.05s; }
+      .shot:nth-child(5) i, .shot:nth-child(5) b, .shot:nth-child(5)::after { animation-delay: 1.3s; }
+      .estimate { opacity: 0; transform: translateY(8px); animation: rise 0.6s var(--ease) 1.75s forwards; }
+      .stamp { opacity: 0; animation: pop 0.4s var(--ease) 2.3s forwards; }
+      @keyframes show { to { opacity: 1; } }
+      @keyframes rise { to { opacity: 1; transform: none; } }
+      @keyframes pop { from { opacity: 0; transform: rotate(4deg) scale(0.8); } to { opacity: 1; transform: rotate(4deg) scale(1); } }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .shot i, .shot b, .shot:nth-child(5)::after { opacity: 1; }
+    }
+
+    /* Sections claires */
+    .light { background: var(--paper); color: var(--ink); }
+    .section { padding-top: 88px; padding-bottom: 88px; }
+    @media (max-width: 920px) { .section, .closing { padding-top: 64px; padding-bottom: 64px; } }
+    .section h2 { font-size: clamp(1.9rem, 3.6vw, 2.7rem); letter-spacing: -0.045em; line-height: 1.05; max-width: 20ch; margin-bottom: 14px; }
+    .section .intro { color: var(--muted); font-size: 1.05rem; max-width: 56ch; margin-bottom: 44px; }
+
+    .steps { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; counter-reset: s; border-top: 2px solid var(--ink); }
+    .steps li { padding: 22px 28px 8px 0; counter-increment: s; }
+    .steps li + li { padding-left: 28px; border-left: 1px solid var(--line); }
+    .steps li::before { content: counter(s); display: block; font-size: 3rem; font-weight: 700; letter-spacing: -0.06em; color: var(--gold-deep); line-height: 1; margin-bottom: 14px; }
+    .steps h3 { font-size: 1.15rem; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .steps p { color: var(--muted); line-height: 1.55; }
+
+    .split { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 64px; align-items: start; }
+    .gains { list-style: none; }
+    .gains li { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .gains li:first-child { border-top: 1px solid var(--line); }
+    .gains strong { font-size: 1.05rem; letter-spacing: -0.02em; }
+    .gains span { color: var(--muted); line-height: 1.55; }
+
+    .doors { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .door { display: flex; flex-direction: column; gap: 10px; text-decoration: none; border-radius: 20px; padding: 28px; min-height: 220px; }
+    .door h3 { font-size: 1.4rem; letter-spacing: -0.03em; }
+    .door p { line-height: 1.55; max-width: 40ch; }
+    .door .go { margin-top: auto; font-weight: 700; }
+    .door-client { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+    .door-client p { color: var(--muted); }
+    .door-client .go { color: var(--gold-deep); }
+    .door-pro { background: var(--night); color: var(--ivory); }
+    .door-pro p { color: var(--ivory-dim); }
+    .door-pro .go { color: var(--gold); }
+    .door:hover h3 { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+
+    .closing { text-align: left; padding-top: 88px; padding-bottom: 88px; }
+    .closing h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -0.05em; line-height: 1.02; max-width: 16ch; margin-bottom: 18px; }
+    .closing p { color: var(--ivory-dim); max-width: 50ch; margin-bottom: 28px; font-size: 1.05rem; }
+    .foot { border-top: 1px solid var(--rule); padding-top: 26px; padding-bottom: 36px; display: flex; flex-wrap: wrap; gap: 12px 24px; font-size: 0.85rem; color: var(--ivory-dim); }
+    .foot a { text-decoration: none; }
+    .foot a:hover { color: var(--ivory); }
+    .foot .note { margin-left: auto; max-width: 52ch; }
+
+    @media (max-width: 920px) {
+      .hero, .split { grid-template-columns: 1fr; gap: 40px; }
+      .hero { padding-top: 24px; padding-bottom: 64px; }
+      .steps { grid-template-columns: 1fr; }
+      .steps li, .steps li + li { padding: 20px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+      .doors { grid-template-columns: 1fr; }
+      .gains li { grid-template-columns: 1fr; gap: 6px; }
+      .bar nav a:not(.btn) { display: none; }
+      .stamp { right: 6px; }
+      .foot .note { margin-left: 0; }
+    }
+    @media (max-width: 420px) {
+      .wrap { padding-left: 16px; padding-right: 16px; }
+      .shots { gap: 5px; }
+      .sheet { padding: 16px; transform: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="mark">
-      <div class="bolt" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+  <header class="wrap bar">
+    <a class="brand" href="index.html">
+      <span class="bolt" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg></span>
+      Devis artisan
+    </a>
+    <nav aria-label="Navigation principale">
+      <a href="#fonctionnement">Comment ça marche</a>
+      <a href="widget/index.html">Essayer le formulaire</a>
+      <a class="btn btn-line" href="dashboard/index.html">Espace artisan</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="wrap hero">
+      <div>
+        <h1>Le devis commence par cinq photos.</h1>
+        <p class="lead">Vos clients décrivent leur besoin et prennent les bonnes photos, guidés étape par étape. Vous recevez un dossier complet, avec une première estimation basée sur vos propres prix.</p>
+        <div class="ctas">
+          <a class="btn btn-gold" href="inscription/index.html">Créer ma page artisan</a>
+          <a class="btn btn-line" href="widget/index.html">Voir ce que voit le client</a>
+        </div>
+        <ul class="proof">
+          <li>Gratuit pour le client</li>
+          <li>Moins de déplacements pour rien</li>
+          <li>Vous restez seul à décider du prix</li>
+        </ul>
       </div>
-      <strong>Outil de devis</strong>
+
+      <div class="demo" aria-label="Exemple de demande reçue par l’artisan">
+        <article class="sheet">
+          <div class="sheet-head">
+            <strong>Léa, Lyon 3e</strong>
+            <span>reçu il y a 4 min</span>
+          </div>
+          <p class="need">« Les plombs sautent dès que je lance le four et la machine en même temps. Le tableau date des années 80. »</p>
+          <div class="shots" aria-hidden="true">
+            <div class="shot"><i></i><b>Vue d’ensemble</b></div>
+            <div class="shot"><i></i><b>Gros plan</b></div>
+            <div class="shot"><i></i><b>Autour</b></div>
+            <div class="shot"><i></i><b>Accès</b></div>
+            <div class="shot"><i></i><b>Vidéo</b></div>
+          </div>
+          <div class="estimate">
+            <p>Première estimation, d’après vos tarifs</p>
+            <ul>
+              <li><span>Constat de l’installation</span><span>180 €</span></li>
+              <li><span>Mise aux normes du tableau</span><span>1 450 €</span></li>
+              <li><span>Essais et contrôles</span><span>260 €</span></li>
+            </ul>
+            <div class="total"><span>Total estimé HT</span><strong>1 890 €</strong></div>
+          </div>
+        </article>
+        <span class="stamp">Dossier complet</span>
+      </div>
+    </section>
+
+    <div class="light">
+      <section class="wrap section" id="fonctionnement">
+        <h2>Une demande claire, sans aller-retour.</h2>
+        <p class="intro">Plus besoin de rappeler trois fois pour comprendre le chantier. Le client fait le tri pour vous, en deux minutes.</p>
+        <ol class="steps">
+          <li>
+            <h3>Le client explique son besoin</h3>
+            <p>Avec ses mots, à l’écrit ou à la voix, depuis votre page ou le formulaire intégré à votre site.</p>
+          </li>
+          <li>
+            <h3>Il prend les photos utiles</h3>
+            <p>Cinq photos demandées une par une, adaptées à sa situation. Rien à démonter, rien à deviner.</p>
+          </li>
+          <li>
+            <h3>Vous recevez un dossier chiffré</h3>
+            <p>Description, photos et estimation arrivent dans votre espace. Vous rappelez le client en sachant déjà quoi lui proposer.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="wrap section split">
+        <div>
+          <h2>Pensé pour les artisans, pas pour les ordinateurs.</h2>
+          <p class="intro">Électricien, plombier, couvreur : l’outil apprend vos prix et parle comme vos clients.</p>
+        </div>
+        <ul class="gains">
+          <li><strong>Vos prix, pas ceux d’Internet</strong><span>Collez votre grille ou déposez d’anciens devis : l’estimation part de ce que vous facturez vraiment.</span></li>
+          <li><strong>Moins de visites inutiles</strong><span>Les photos montrent l’accès, l’état et l’ampleur du travail avant de prendre la route.</span></li>
+          <li><strong>Des clients mieux accueillis</strong><span>Une page à votre nom et une réponse rapide donnent confiance dès le premier contact.</span></li>
+          <li><strong>Tout au même endroit</strong><span>Demandes, statuts, rappels et historique de chaque client dans un seul espace.</span></li>
+        </ul>
+      </section>
+
+      <section class="wrap section" style="padding-top: 0;">
+        <div class="doors">
+          <a class="door door-client" href="widget/index.html">
+            <h3>Le formulaire client</h3>
+            <p>Essayez-le comme un particulier : description, photos guidées, puis envoi de la demande.</p>
+            <span class="go">Tester le formulaire</span>
+          </a>
+          <a class="door door-pro" href="dashboard/index.html">
+            <h3>L’espace artisan</h3>
+            <p>Retrouvez les demandes reçues, triées et prêtes à chiffrer, avec les photos et l’estimation.</p>
+            <span class="go">Ouvrir mon espace</span>
+          </a>
+        </div>
+      </section>
     </div>
-    <h1>Deux portes, un même projet</h1>
-    <p class="intro">Le particulier arrive sur la page artisan et remplit le widget. L’artisan suit les demandes dans son dashboard. Chaque atelier a sa page et son espace.</p>
-    <div class="grid">
-      <a class="card" href="widget/index.html">
-        <span>Côté client</span>
-        <h2>Widget de devis</h2>
-        <p>Description du besoin, photos guidées une par une, puis transmission à l’artisan.</p>
-      </a>
-      <a class="card" href="dashboard/index.html">
-        <span>Côté artisan</span>
-        <h2>Dashboard</h2>
-        <p>Liste des demandes, détail, appel / e-mail, et suivi de statut (nouveau → devis envoyé).</p>
-      </a>
-    </div>
-    <p class="note">Les demandes vont dans Supabase une fois le projet configuré. Tant que les clés ne sont pas renseignées, elles restent dans le navigateur (démo locale).</p>
-  </div>
+
+    <section class="wrap closing">
+      <h2>Votre prochain chantier mérite un meilleur premier contact.</h2>
+      <p>Créez votre page en quelques minutes et partagez-la à vos clients, sur votre site, vos réseaux ou par SMS.</p>
+      <a class="btn btn-gold" href="inscription/index.html">Créer ma page artisan</a>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <a href="dashboard/index.html">Espace artisan</a>
+    <a href="widget/index.html">Formulaire client</a>
+    <a href="page/index.html">Exemple de page artisan</a>
+    <p class="note">Le client reçoit une estimation indicative. Le devis définitif reste établi par l’artisan.</p>
+  </footer>
 </body>
 </html>
