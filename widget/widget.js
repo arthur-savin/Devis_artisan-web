@@ -502,7 +502,7 @@
     return {
       ...item,
       label,
-      hint: "Photographiez seulement ce qui est déjà visible. Ne retirez rien et ne démontez rien. Si ce n’est pas accessible, passez cette photo.",
+      hint: "Photographiez seulement ce que vous voyez déjà, sans rien démonter ni retirer. Si ce n’est pas accessible, passez simplement cette photo.",
     };
   }
 
@@ -841,7 +841,7 @@
     const isVid = file && String(file.type || "").startsWith("video/");
     const isImg = file && String(file.type || "").startsWith("image/");
     if (videoMode && !fromRecorder) {
-      setFeedback("Filmez la vidéo ici, en 720p (environ 30 secondes). L’import depuis l’appareil n’est pas possible.", "wait");
+      setFeedback("Filmez la vidéo directement ici, environ 30 secondes. Il n’est pas possible d’importer une vidéo déjà enregistrée.", "wait");
       return;
     }
     if (videoMode && !isVid) {
@@ -1000,11 +1000,11 @@
         0
       );
       const fillers = [
-        { id: "vue_ensemble", kind: "photo", label: "Vue d’ensemble de la zone concernée", hint: "Reculez un peu, de jour, pour situer le chantier." },
-        { id: "detail", kind: "photo", label: "Gros plan sur le détail à traiter", hint: "Approchez-vous du point précis, photo nette, sans flash." },
-        { id: "contexte", kind: "photo", label: "Contexte autour de la zone", hint: "Ce qui se raccorde ou se trouve juste à côté." },
-        { id: "acces", kind: "photo", label: "Accès au chantier", hint: "Le passage qui mènera l’artisan sur place." },
-        { id: "parcours", kind: "video", label: "Parcours lent de la zone", hint: "Filmez environ 30 secondes, lentement, de l’ensemble vers le détail." },
+        { id: "vue_ensemble", kind: "photo", label: "Vue d’ensemble de la zone concernée", hint: "Reculez de quelques pas pour montrer toute la zone, de préférence de jour." },
+        { id: "detail", kind: "photo", label: "Gros plan sur le problème", hint: "Approchez-vous de l’endroit précis. Une photo nette, sans flash." },
+        { id: "contexte", kind: "photo", label: "Ce qu’il y a autour", hint: "Montrez ce qui se trouve juste à côté ou ce qui y est relié." },
+        { id: "acces", kind: "photo", label: "Comment accéder à la zone", hint: "Le chemin que l’artisan empruntera : porte, escalier, couloir…" },
+        { id: "parcours", kind: "video", label: "Petite vidéo de la zone", hint: "Filmez environ 30 secondes, lentement, en partant de la vue d’ensemble jusqu’au détail." },
       ];
       fillers.forEach((extra) => {
         if (photos.length >= 5) return;
@@ -1149,7 +1149,7 @@
     }
     btn.disabled = true;
     btn.textContent = "Lecture de la photo…";
-    setFeedback("Nous regardons si cette photo permet à l’artisan de bien voir l’élément.", "wait");
+    setFeedback("Nous vérifions que la photo est assez claire pour l’artisan…", "wait");
     try {
       const thumb = await fileToThumb(preview.file);
       if (!thumb) {
@@ -1187,7 +1187,7 @@
           "ok"
         );
       } else {
-        setFeedback(reply || "Merci, c’est bien lisible. On continue.", "ok");
+        setFeedback(reply || "Parfait, la photo est bien claire. On continue !", "ok");
       }
       captured.push({
         item,
@@ -1241,7 +1241,7 @@
     queueIndex += 1;
     saveDraft();
     setFeedback(
-      "C’est noté : cette capture n’est pas exigée. L’artisan pourra vous la redemander s’il en a besoin.",
+      "C’est noté, pas de souci. L’artisan vous la redemandera s’il en a besoin.",
       "ok"
     );
     setTimeout(() => {
@@ -1278,7 +1278,7 @@
       show(5);
     } catch (err) {
       document.getElementById("reviewWaitText").textContent =
-        "Nous transmettons le dossier en l’état. L’artisan pourra demander un complément s’il le souhaite.";
+        "Nous envoyons votre demande telle quelle. L’artisan vous recontactera s’il lui manque une information.";
       setTimeout(() => {
         if (run !== journey) return;
         direction = "next";
@@ -1392,7 +1392,7 @@
       introEl.textContent =
         estimate.clientSummary ||
         (payload && payload.client_message) ||
-        "Voici le détail des travaux envisagés d’après votre description et vos photos.";
+        "D’après votre description et vos photos, voici les travaux qui seraient à prévoir.";
     }
     if (listEl) {
       const hasPrice = Boolean(estimate.hasPrice || (payload && payload.has_price));
@@ -1428,7 +1428,7 @@
       legalEl.textContent =
         estimate.disclaimer ||
         (payload && payload.disclaimer) ||
-        "Ce prédevis est indicatif et non contractuel. Il ne vaut pas devis : l’artisan reste seul décisionnaire.";
+        "Cette estimation est indicative et sans engagement. Le devis définitif sera établi par l’artisan.";
     }
   }
 
@@ -1441,17 +1441,17 @@
     const title = document.getElementById("t6");
     const lead = document.getElementById("confirmLead");
     const summaryEl = document.getElementById("clientSummary");
-    if (title) title.textContent = "Dossier transmis";
+    if (title) title.textContent = "Demande envoyée";
     if (lead) {
       lead.textContent = artisan
         ? artisan.displayName + " a bien reçu votre dossier et vous rappelle sous 24 h ouvrées."
-        : "Un artisan a bien reçu votre dossier et vous rappelle sous 24 h ouvrées.";
+        : "C’est envoyé ! L’artisan a bien reçu votre demande et vous rappelle sous 24 h ouvrées.";
     }
     renderPredevis(payload || {});
     summaryEl.textContent =
       estimate.clientSummary ||
       (payload && payload.client_message) ||
-      "Votre description et vos photos ont été transmises. L’artisan établira le devis.";
+      "Votre description et vos photos ont bien été transmises. L’artisan s’appuiera dessus pour préparer votre devis.";
     fillSummary();
     setLandingMode("result");
   }
@@ -1463,7 +1463,7 @@
     if (leadTxt) {
       leadTxt.textContent = artisan
         ? "Votre dossier part vers " + artisan.displayName + "."
-        : "Votre dossier part vers l’artisan.";
+        : "Votre demande est en cours d’envoi à l’artisan.";
     }
     setLandingMode("wait");
     const photos = captured.map((c, i) => ({
@@ -1532,7 +1532,7 @@
         show(6);
         persistAndFinalize().catch((err) => {
           btn.disabled = false;
-          btn.textContent = "Transmettre le dossier";
+          btn.textContent = "Envoyer ma demande";
           if (!createdLead) {
             direction = "back";
             show(5);
@@ -1587,7 +1587,7 @@
       }
       startLiveRecord().catch(() => {
         setFeedback(
-          "Autorisez la caméra du navigateur pour filmer ici en 720p. L’appli Appareil photo n’est pas utilisée, pour éviter les fichiers 4K trop lourds.",
+          "Autorisez l’accès à la caméra pour filmer directement ici. Cela garde une vidéo légère, facile à envoyer.",
           "wait"
         );
         renderShot();
@@ -1716,19 +1716,19 @@
       sendBtn.hidden = true;
     }
     document.getElementById("submitBtn").disabled = false;
-    document.getElementById("submitBtn").textContent = "Transmettre le dossier";
+    document.getElementById("submitBtn").textContent = "Envoyer ma demande";
     document.querySelectorAll(".is-invalid").forEach((el) => el.classList.remove("is-invalid"));
     document.getElementById("err1").classList.remove("is-on");
     const errSend = document.getElementById("errSend");
     if (errSend) errSend.classList.remove("is-on");
     const planWaitText = document.getElementById("planWaitText");
     if (planWaitText) {
-      planWaitText.textContent = "Lecture de votre description pour coller au plus près du constat réel.";
+      planWaitText.textContent = "Nous lisons votre description pour vous demander uniquement les photos vraiment utiles.";
     }
     const reviewWaitText = document.getElementById("reviewWaitText");
     if (reviewWaitText) {
       reviewWaitText.textContent =
-        "Vos 5 captures suffisent. Le dossier part ensuite à l’artisan, qui demandera un complément seulement s’il en a besoin.";
+        "Merci, vos photos sont bien reçues. Votre demande part ensuite à l’artisan, qui vous recontactera s’il lui manque une information.";
     }
     setLandingMode("wait");
     direction = "back";
