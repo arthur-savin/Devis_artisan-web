@@ -72,6 +72,20 @@ body.dash {
   text-decoration: none;
 }
 
+#linkWidget {
+  margin-top: 12px;
+  margin-bottom: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+#linkWidget:hover {
+  background: rgba(244, 196, 48, 0.16);
+  color: var(--gold);
+}
+
 .main {
   display: flex;
   flex-direction: column;
@@ -701,7 +715,9 @@ body.dash {
     gap: 16px;
   }
   .nav-side { flex-direction: row; flex-wrap: wrap; }
-  .side-foot { display: none; }
+  .side-foot { display: contents; }
+  .side-foot > :not(#linkWidget) { display: none; }
+  #linkWidget { margin-top: 0; }
   .stats { grid-template-columns: 1fr; }
   .workspace { grid-template-columns: 1fr; }
   .ia-cols { grid-template-columns: 1fr; }

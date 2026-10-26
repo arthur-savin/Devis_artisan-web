@@ -59,9 +59,7 @@
         : artisan.metier;
     }
     const q = store.artisanQuery(artisan);
-    const pageLink = document.getElementById("linkPage");
     const widgetLink = document.getElementById("linkWidget");
-    if (pageLink) pageLink.href = "../page/index.html" + q;
     if (widgetLink) widgetLink.href = "../widget/index.html" + q;
     document.title = artisan.displayName + " — Tableau de bord";
   }
