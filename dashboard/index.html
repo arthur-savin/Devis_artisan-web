@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Espace artisan — Demandes de devis</title>
+  <title>Espace artisan — Tableau de bord</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -71,14 +71,12 @@
         </div>
       </div>
       <nav class="nav-side">
-        <a class="is-on" href="index.html">Demandes</a>
+        <a class="is-on" href="index.html">Tableau de bord</a>
         <a href="paiements.html">Paiements</a>
-        <a href="tarifs.html">Former l’IA</a>
-        <a id="linkPage" href="../page/index.html">Ma page</a>
-        <a id="linkWidget" href="../widget/index.html">Voir le widget</a>
       </nav>
       <div class="side-foot">
         <span id="backendNote">Chargement…</span>
+        <a id="linkWidget" href="../widget/index.html">Voir le widget</a>
         <button type="button" id="resetDemo">Réinitialiser les exemples</button>
         <button type="button" id="logout">Se déconnecter</button>
       </div>
@@ -86,15 +84,8 @@
 
     <div class="main">
       <header class="top">
-        <h1>Demandes reçues</h1>
-        <input class="search" id="search" type="search" placeholder="Rechercher un prénom, un CP…" />
-        <div class="filters" id="filters">
-          <button type="button" class="filter is-on" data-filter="tous">Tous</button>
-          <button type="button" class="filter" data-filter="nouveau">Nouveaux</button>
-          <button type="button" class="filter" data-filter="contacte">Contactés</button>
-          <button type="button" class="filter" data-filter="devis_envoye">Devis envoyés</button>
-          <button type="button" class="filter" data-filter="archive">Archivés</button>
-        </div>
+        <h1>Tableau de bord</h1>
+        <a class="btn btn-gold" href="tarifs.html">Former l’IA</a>
       </header>
 
       <div class="content">
@@ -105,6 +96,16 @@
         </section>
         <section class="workspace">
           <div class="panel">
+            <div class="list-tools">
+              <input class="search" id="search" type="search" placeholder="Rechercher un prénom, un CP…" />
+              <div class="filters" id="filters">
+                <button type="button" class="filter is-on" data-filter="tous">Tous</button>
+                <button type="button" class="filter" data-filter="nouveau">Nouveaux</button>
+                <button type="button" class="filter" data-filter="contacte">Contactés</button>
+                <button type="button" class="filter" data-filter="devis_envoye">Devis envoyés</button>
+                <button type="button" class="filter" data-filter="archive">Archivés</button>
+              </div>
+            </div>
             <div class="bulk" id="bulk">
               <label class="bulk-select">
                 <input type="checkbox" id="selectAll" />

@@ -17,8 +17,8 @@
       ? artisan.metier + " · " + artisan.ville
       : artisan.metier;
     const q = store.artisanQuery(artisan);
-    document.getElementById("linkPage").href = "../page/index.html" + q;
-    document.getElementById("linkWidget").href = "../widget/index.html" + q;
+    const widgetLink = document.getElementById("linkWidget");
+    if (widgetLink) widgetLink.href = "../widget/index.html" + q;
     document.title = artisan.displayName + " — Former l’IA";
     document.getElementById("tarifGrid").value = artisan.tarifGrid || "";
     document.getElementById("baremeIndicatif").value = artisan.baremeIndicatif || "";
