@@ -155,6 +155,23 @@ body.dash {
   min-height: 420px;
 }
 
+.list-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.list-tools .search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.list-tools .filters { margin-left: auto; }
+
 .bulk {
   display: flex;
   flex-wrap: wrap;
@@ -688,6 +705,8 @@ body.dash {
   .stats { grid-template-columns: 1fr; }
   .workspace { grid-template-columns: 1fr; }
   .ia-cols { grid-template-columns: 1fr; }
+  .list-tools .search { max-width: none; flex-basis: 100%; }
+  .list-tools .filters { margin-left: 0; }
   .bulk-tools { width: 100%; }
   .bulk-tools select,
   .bulk-hide { flex: 1; }
