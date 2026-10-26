@@ -166,8 +166,8 @@ body.dash {
 }
 
 .list-tools .search {
-  flex: 1 1 220px;
-  max-width: 320px;
+  flex: 1 1 260px;
+  min-width: 240px;
 }
 
 .list-tools .filters { margin-left: auto; }
@@ -705,7 +705,7 @@ body.dash {
   .stats { grid-template-columns: 1fr; }
   .workspace { grid-template-columns: 1fr; }
   .ia-cols { grid-template-columns: 1fr; }
-  .list-tools .search { max-width: none; flex-basis: 100%; }
+  .list-tools .search { flex-basis: 100%; min-width: 0; }
   .list-tools .filters { margin-left: 0; }
   .bulk-tools { width: 100%; }
   .bulk-tools select,
