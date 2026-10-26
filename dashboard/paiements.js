@@ -1,6 +1,7 @@
 /**
- * Paiements : suivi des factures issues des devis gagnés
- * et relances graduées jusqu’au paiement.
+ * Paiements : suivi des factures et relances.
+ * Les demandes au statut « devis envoyé » sont inscrites ici,
+ * dans la même base que les demandes.
  */
 (async function () {
   const store = window.DevisStore;
@@ -30,33 +31,22 @@
     document.title = artisan.displayName + " — Paiements";
   }
 
-  const KEY = "artisan-devis.paiements.v1:" + (artisan.id || "local");
-  const DEFAULT_STEPS = [
-    { offset: -3, label: "Rappel cordial", tone: 1 },
-    { offset: 3, label: "Relance", tone: 2 },
-    { offset: 10, label: "Relance ferme", tone: 3 },
-    { offset: 20, label: "Mise en demeure", tone: 4 },
-  ];
-
-  function load() {
-    try {
-      const data = JSON.parse(localStorage.getItem(KEY) || "{}");
-      return {
-        invoices: Array.isArray(data.invoices) ? data.invoices : [],
-        steps: Array.isArray(data.steps) && data.steps.length ? data.steps : DEFAULT_STEPS,
-        settings: Object.assign({ iban: "", link: "", delay: 30 }, data.settings),
-      };
-    } catch (e) {
-      return { invoices: [], steps: DEFAULT_STEPS, settings: { iban: "", link: "", delay: 30 } };
-    }
+  let state;
+  try {
+    state = await store.syncPaymentFollowups();
+  } catch (err) {
+    alert((err && err.message) || "Impossible de lire le suivi des paiements.");
+    state = await store.loadPayments();
   }
-  const state = load();
+  const dbNote = document.getElementById("payDbNote");
+  if (dbNote && store.lastError && /suivi des paiements/i.test(store.lastError)) {
+    dbNote.hidden = false;
+    dbNote.textContent = store.lastError;
+  }
   function save() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(state));
-    } catch (e) {
-      alert("Enregistrement impossible dans ce navigateur.");
-    }
+    return store.savePayments(state).catch((err) => {
+      alert((err && err.message) || "Enregistrement du suivi impossible.");
+    });
   }
 
   const esc = (s) =>
@@ -237,6 +227,11 @@
   f("newInvoice").addEventListener("click", () => openInvoice({}));
 
   function billLead(id) {
+    const existing = state.invoices.find((invoice) => invoice.leadId === id);
+    if (existing) {
+      openInvoice(existing);
+      return;
+    }
     const l = store.get(id);
     if (!l) return;
     openInvoice({
@@ -254,7 +249,7 @@
   function openReminder(inv) {
     let idx = dueStep(inv);
     if (idx < 0) idx = Math.min(state.steps.length - 1, inv.lastStep || 0);
-    const step = state.steps[idx] || DEFAULT_STEPS[0];
+    const step = state.steps[idx] || state.steps[0];
     reminding = { inv, idx };
     const msg = buildMessage(inv, step);
     f("remTitle").textContent = `${step.label} · ${inv.number}`;
