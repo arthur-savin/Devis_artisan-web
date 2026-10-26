@@ -131,7 +131,10 @@
     });
     prixReel.hidden = key !== "gagne";
     const billLink = document.getElementById("billLink");
-    if (billLink) billLink.href = "paiements.html?lead=" + encodeURIComponent(new URLSearchParams(location.search).get("id") || "");
+    if (billLink) {
+      billLink.hidden = key !== "devis_envoye" && key !== "gagne";
+      billLink.href = "paiements.html?lead=" + encodeURIComponent(new URLSearchParams(location.search).get("id") || "");
+    }
   }
 
   function renderPhotos() {

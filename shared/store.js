@@ -11,6 +11,13 @@
   const ARTISANS_KEY = "artisan-devis.artisans.v1";
   const SERVICE_PRICES_KEY = "artisan-devis.service-prices.v1";
   const IMPORTS_KEY = "artisan-devis.quote-imports.v1";
+  const PAYMENTS_KEY_PREFIX = "artisan-devis.paiements.v1:";
+  const DEFAULT_PAY_STEPS = [
+    { offset: -3, label: "Rappel cordial", tone: 1 },
+    { offset: 3, label: "Relance", tone: 2 },
+    { offset: 10, label: "Relance ferme", tone: 3 },
+    { offset: 20, label: "Mise en demeure", tone: 4 },
+  ];
   const SESSION = "artisan-devis.session";
   const SESSION_ARTISAN = "artisan-devis.session.artisan";
   const DEFAULT_ARTISAN_ID = "art_demo_01";
@@ -881,6 +888,7 @@
   const DEVICE_KEY = "artisan-devis.device";
   let signedIn = false;
   let currentArtisan = null;
+  let paymentCache = null;
   let deviceChallenge = null;
   let readyPromise = null;
   let lastError = null;
@@ -1731,6 +1739,238 @@
     return mapped;
   }
 
+  function isoToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function addIsoDays(iso, days) {
+    const t = new Date(String(iso || isoToday()) + "T12:00:00");
+    t.setDate(t.getDate() + (Number(days) || 0));
+    return t.toISOString().slice(0, 10);
+  }
+
+  function paymentsStorageKey() {
+    const artisan = currentArtisan;
+    return PAYMENTS_KEY_PREFIX + ((artisan && artisan.id) || "local");
+  }
+
+  function emptyPayments() {
+    return {
+      invoices: [],
+      steps: DEFAULT_PAY_STEPS.map((step) => ({ ...step })),
+      settings: { iban: "", link: "", delay: 30 },
+    };
+  }
+
+  function normalizePayments(raw) {
+    const data = raw && typeof raw === "object" ? raw : {};
+    const steps = Array.isArray(data.steps) && data.steps.length ? data.steps : DEFAULT_PAY_STEPS;
+    return {
+      invoices: Array.isArray(data.invoices) ? data.invoices : [],
+      steps: steps.map((step, index) => ({
+        offset: Number(step.offset) || 0,
+        label: String(step.label || DEFAULT_PAY_STEPS[index] && DEFAULT_PAY_STEPS[index].label || "Relance"),
+        tone: Number(step.tone) || index + 1,
+      })),
+      settings: {
+        iban: String((data.settings && data.settings.iban) || ""),
+        link: String((data.settings && data.settings.link) || ""),
+        delay: Number(data.settings && data.settings.delay) || 30,
+      },
+    };
+  }
+
+  function clonePayments(state) {
+    return JSON.parse(JSON.stringify(normalizePayments(state)));
+  }
+
+  function readLocalPayments() {
+    try {
+      return normalizePayments(JSON.parse(localStorage.getItem(paymentsStorageKey()) || "{}"));
+    } catch (e) {
+      return emptyPayments();
+    }
+  }
+
+  function writeLocalPayments(state) {
+    const next = normalizePayments(state);
+    localStorage.setItem(paymentsStorageKey(), JSON.stringify(next));
+    paymentCache = next;
+    return next;
+  }
+
+  function paymentTableMissing(error) {
+    const msg = String((error && error.message) || error || "");
+    return /dv_payment_|schema cache|does not exist|relation/i.test(msg);
+  }
+
+  function mapPaymentInvoice(row) {
+    if (!row) return null;
+    const reminders = Array.isArray(row.reminders) ? row.reminders : [];
+    return {
+      id: row.public_id || "inv_" + row.id,
+      dbId: row.id,
+      leadId: row.lead_public_id || null,
+      client: row.client_name || "",
+      email: row.client_email || "",
+      label: row.label || "",
+      number: row.number || "",
+      amount: Number(row.amount_ttc) || 0,
+      issue: row.issued_on,
+      due: row.due_on,
+      paidAt: row.paid_at || null,
+      reminders,
+      lastStep: Number(row.last_step) || 0,
+    };
+  }
+
+  function leadPaymentAmount(lead) {
+    const est = (lead && lead.estimate) || {};
+    const lines = Array.isArray(est.prestations) ? est.prestations : [];
+    const sum = lines.reduce((total, line) => total + (Number(line.amount) || 0), 0);
+    if (sum) return sum;
+    if (est.priceMin && est.priceMax) return Math.round((Number(est.priceMin) + Number(est.priceMax)) / 2);
+    if (lead && lead.prixReelHt != null && lead.prixReelHt !== "") return Number(lead.prixReelHt) || 0;
+    return 0;
+  }
+
+  function nextPaymentNumber(invoices) {
+    const year = new Date().getFullYear();
+    const prefix = "F" + year + "-";
+    const n = (invoices || []).filter((invoice) => String(invoice.number || "").startsWith(prefix)).length + 1;
+    return prefix + String(n).padStart(3, "0");
+  }
+
+  function invoiceFromSentLead(lead, state) {
+    const issue = isoToday();
+    const delay = Number(state.settings && state.settings.delay) || 30;
+    const label =
+      (lead.estimate && lead.estimate.titrePredevis) ||
+      (Array.isArray(lead.travaux) ? lead.travaux.filter(Boolean).join(" · ") : "") ||
+      "Devis";
+    return {
+      id: "inv_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      leadId: lead.id,
+      client: displayName(lead),
+      email: lead.email || "",
+      label,
+      number: nextPaymentNumber(state.invoices),
+      amount: leadPaymentAmount(lead),
+      issue,
+      due: addIsoDays(issue, delay),
+      reminders: [],
+      lastStep: 0,
+      paidAt: null,
+    };
+  }
+
+  async function loadPayments() {
+    await Store.ready();
+    const artisan = Store.currentArtisan();
+    if (writesLocally() || !client || !artisan || artisan.dbId == null) {
+      paymentCache = readLocalPayments();
+      return clonePayments(paymentCache);
+    }
+    const invoicesRes = await client
+      .from("dv_payment_invoices")
+      .select("*")
+      .eq("artisan_id", artisan.dbId)
+      .order("created_at", { ascending: true });
+    if (invoicesRes.error) {
+      if (paymentTableMissing(invoicesRes.error)) {
+        lastError =
+          "Le suivi des paiements n’est pas encore en base. Exécutez la migration 20261026180000_payment_followups.sql dans le SQL Editor Supabase. En attendant, le suivi reste dans ce navigateur.";
+        paymentCache = readLocalPayments();
+        return clonePayments(paymentCache);
+      }
+      throwIf(invoicesRes.error, "Impossible de lire le suivi des paiements.");
+    }
+    const settingsRes = await client
+      .from("dv_payment_settings")
+      .select("*")
+      .eq("artisan_id", artisan.dbId)
+      .maybeSingle();
+    if (settingsRes.error && !paymentTableMissing(settingsRes.error)) {
+      throwIf(settingsRes.error, "Impossible de lire les réglages de relance.");
+    }
+    const settingsRow = settingsRes.data || {};
+    const steps = Array.isArray(settingsRow.steps) ? settingsRow.steps : DEFAULT_PAY_STEPS;
+    paymentCache = normalizePayments({
+      invoices: (invoicesRes.data || []).map(mapPaymentInvoice).filter(Boolean),
+      steps,
+      settings: {
+        iban: settingsRow.iban || "",
+        link: settingsRow.payment_link || "",
+        delay: settingsRow.delay_days || 30,
+      },
+    });
+    return clonePayments(paymentCache);
+  }
+
+  async function savePayments(state) {
+    await Store.ready();
+    const next = normalizePayments(state);
+    const artisan = Store.currentArtisan();
+    if (writesLocally() || !client || !artisan || artisan.dbId == null) {
+      writeLocalPayments(next);
+      emit();
+      return clonePayments(paymentCache);
+    }
+    const settingsWrite = await client.from("dv_payment_settings").upsert(
+      {
+        artisan_id: artisan.dbId,
+        iban: next.settings.iban,
+        payment_link: next.settings.link,
+        delay_days: next.settings.delay,
+        steps: next.steps,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "artisan_id" }
+    );
+    if (settingsWrite.error) {
+      if (paymentTableMissing(settingsWrite.error)) {
+        lastError =
+          "Le suivi des paiements n’est pas encore en base. Exécutez la migration 20261026180000_payment_followups.sql dans le SQL Editor Supabase. En attendant, le suivi reste dans ce navigateur.";
+        writeLocalPayments(next);
+        emit();
+        return clonePayments(paymentCache);
+      }
+      throwIf(settingsWrite.error, "Impossible d’enregistrer les réglages de relance.");
+    }
+    for (const invoice of next.invoices) {
+      const lead = invoice.leadId ? Store.get(invoice.leadId) : null;
+      const row = {
+        public_id: invoice.id,
+        artisan_id: artisan.dbId,
+        lead_id: lead && lead.dbId != null ? Number(lead.dbId) : null,
+        lead_public_id: invoice.leadId || null,
+        client_name: invoice.client || "Client",
+        client_email: invoice.email || "",
+        label: invoice.label || "",
+        number: invoice.number || nextPaymentNumber([]),
+        amount_ttc: Number(invoice.amount) || 0,
+        issued_on: invoice.issue || isoToday(),
+        due_on: invoice.due || addIsoDays(invoice.issue || isoToday(), next.settings.delay),
+        paid_at: invoice.paidAt || null,
+        reminders: invoice.reminders || [],
+        last_step: Number(invoice.lastStep) || 0,
+        updated_at: new Date().toISOString(),
+      };
+      const written = await client.from("dv_payment_invoices").upsert(row, { onConflict: "public_id" });
+      if (written.error && !/duplicate|unique|one_lead/i.test(written.error.message || "")) {
+        if (paymentTableMissing(written.error)) {
+          writeLocalPayments(next);
+          emit();
+          return clonePayments(paymentCache);
+        }
+        throwIf(written.error, "Impossible d’enregistrer la facture " + (invoice.number || "") + ".");
+      }
+    }
+    paymentCache = next;
+    emit();
+    return clonePayments(paymentCache);
+  }
+
   const Store = {
     statuses: STATUSES,
     metiers: METIERS,
@@ -2018,6 +2258,7 @@
         writeLocal(
           readLocal().map((x) => (list.includes(x.id) ? { ...x, ...patch, updatedAt: now } : x))
         );
+        if (patch.status === "devis_envoye") await Store.syncPaymentFollowups();
         return;
       }
 
@@ -2030,11 +2271,56 @@
       }
       await fetchLeads();
       emit();
+      if (patch.status === "devis_envoye") await Store.syncPaymentFollowups();
     },
 
     async updateLead(id, patch) {
       await Store.updateLeads([id], patch);
       return Store.get(id);
+    },
+
+    paymentInvoices() {
+      return (paymentCache && paymentCache.invoices) || [];
+    },
+
+    async loadPayments() {
+      return loadPayments();
+    },
+
+    async savePayments(state) {
+      return savePayments(state);
+    },
+
+    /**
+     * Inscrit dans le suivi des paiements chaque demande au statut
+     * « devis envoyé » qui n’y est pas encore. La facture reste liée
+     * à la demande (leadId / lead_public_id).
+     */
+    async syncPaymentFollowups() {
+      const state = await loadPayments();
+      const known = new Set(state.invoices.map((invoice) => invoice.leadId).filter(Boolean));
+      const created = [];
+      Store.list().forEach((lead) => {
+        if (!lead || lead.status !== "devis_envoye" || !lead.id || known.has(lead.id)) return;
+        const invoice = invoiceFromSentLead(lead, state);
+        state.invoices.push(invoice);
+        known.add(lead.id);
+        created.push({ lead, invoice });
+      });
+      if (!created.length) return state;
+      await savePayments(state);
+      for (const entry of created) {
+        try {
+          await Store.addEvent(
+            entry.lead.id,
+            "Inscrit au suivi des paiements (" + entry.invoice.number + ").",
+            "note"
+          );
+        } catch (err) {
+          console.warn(err && err.message ? err.message : err);
+        }
+      }
+      return state;
     },
 
     async requestAnalysis(id, force, extra) {

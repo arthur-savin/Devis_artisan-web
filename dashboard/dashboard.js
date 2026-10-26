@@ -66,9 +66,14 @@
     document.title = artisan.displayName + " — Demandes";
   }
 
-  function showApp() {
+  async function showApp() {
     gate.hidden = true;
     applyArtisanBrand();
+    try {
+      await store.syncPaymentFollowups();
+    } catch (err) {
+      console.warn(err && err.message ? err.message : err);
+    }
     render();
   }
 
@@ -178,6 +183,11 @@
 
   document.getElementById("resetDemo").addEventListener("click", async () => {
     await store.resetDemo();
+    try {
+      await store.syncPaymentFollowups();
+    } catch (err) {
+      console.warn(err && err.message ? err.message : err);
+    }
     render();
   });
 
@@ -336,12 +346,8 @@
   }
 
   function payBadge(item) {
-    if (item.status !== "gagne") return "";
-    let invoices = [];
-    try {
-      const a = store.currentArtisan() || {};
-      invoices = JSON.parse(localStorage.getItem("artisan-devis.paiements.v1:" + (a.id || "local")) || "{}").invoices || [];
-    } catch (e) {}
+    if (item.status !== "devis_envoye" && item.status !== "gagne") return "";
+    const invoices = store.paymentInvoices();
     const inv = invoices.find((i) => i.leadId === item.id);
     if (!inv) return `<span class="badge gold">À facturer</span>`;
     if (inv.paidAt) return `<span class="badge ok">Payé</span>`;
