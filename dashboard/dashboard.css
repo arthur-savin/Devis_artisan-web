@@ -77,8 +77,9 @@ body.dash {
   margin-bottom: 4px;
   padding: 10px 12px;
   border-radius: 10px;
-  color: inherit;
+  color: #F7F1E4;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 #linkWidget:hover {
