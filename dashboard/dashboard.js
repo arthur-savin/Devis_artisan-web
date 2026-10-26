@@ -335,6 +335,20 @@
     }).format(ts);
   }
 
+  function payBadge(item) {
+    if (item.status !== "gagne") return "";
+    let invoices = [];
+    try {
+      const a = store.currentArtisan() || {};
+      invoices = JSON.parse(localStorage.getItem("artisan-devis.paiements.v1:" + (a.id || "local")) || "{}").invoices || [];
+    } catch (e) {}
+    const inv = invoices.find((i) => i.leadId === item.id);
+    if (!inv) return `<span class="badge gold">À facturer</span>`;
+    if (inv.paidAt) return `<span class="badge ok">Payé</span>`;
+    const late = inv.due < new Date().toISOString().slice(0, 10);
+    return `<span class="badge ${late ? "danger" : "navy"}">${late ? "Paiement en retard" : "Facturé"}</span>`;
+  }
+
   function badge(status) {
     const meta = store.statuses[status] || store.statuses.nouveau;
     return `<span class="badge ${meta.tone}">${meta.label}</span>`;
@@ -372,7 +386,7 @@
               <strong>${store.displayName(item)} · ${store.formatTravaux(item.travaux)}</strong>
               <small>${item.cp} · ${item.surface} m² · ${fmtDate(item.createdAt)}</small>
             </div>
-            <div class="row-end">${badge(item.status)}<span class="row-go">Fiche →</span></div>
+            <div class="row-end">${badge(item.status)}${payBadge(item)}<span class="row-go">Fiche →</span></div>
           </a>
           <button type="button" class="row-hide" data-hide-id="${id}" title="Supprimer de la liste" aria-label="Supprimer de la liste">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 14h10l1-14"/></svg>

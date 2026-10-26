@@ -693,7 +693,7 @@ body.dash {
   .bulk-hide { flex: 1; }
 }
 
-/* ---------- Paiements · Payflow ---------- */
+/* ---------- Paiements ---------- */
 .pf-tag {
   display: inline-block;
   vertical-align: middle;

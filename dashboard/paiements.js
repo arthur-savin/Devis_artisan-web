@@ -1,5 +1,5 @@
 /**
- * Payflow intégré : suivi des factures issues des devis gagnés
+ * Paiements : suivi des factures issues des devis gagnés
  * et relances graduées jusqu’au paiement.
  */
 (async function () {
@@ -30,7 +30,7 @@
     document.title = artisan.displayName + " — Paiements";
   }
 
-  const KEY = "artisan-devis.payflow.v1:" + (artisan.id || "local");
+  const KEY = "artisan-devis.paiements.v1:" + (artisan.id || "local");
   const DEFAULT_STEPS = [
     { offset: -3, label: "Rappel cordial", tone: 1 },
     { offset: 3, label: "Relance", tone: 2 },
@@ -229,7 +229,7 @@
     if (editing.id) Object.assign(state.invoices.find((i) => i.id === editing.id), data);
     else {
       state.invoices.push(Object.assign({ id: "inv_" + Date.now().toString(36), leadId: editing.leadId || null, reminders: [], lastStep: 0 }, data));
-      if (editing.leadId) store.addEvent(editing.leadId, `Facture ${data.number} créée (${eur(data.amount)}), suivie par Payflow.`, "note").catch(() => {});
+      if (editing.leadId) store.addEvent(editing.leadId, `Facture ${data.number} créée (${eur(data.amount)}), paiement suivi.`, "note").catch(() => {});
     }
     save();
     render();
