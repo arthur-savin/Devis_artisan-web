@@ -12,11 +12,28 @@
     return;
   }
   const logoutBtn = document.getElementById("logout");
+  const resetBtn = document.getElementById("resetDemo");
+  const backendNote = document.getElementById("backendNote");
+  if (backendNote) {
+    backendNote.textContent = !store.authRequired()
+      ? "Authentification désactivée"
+      : store.backend === "supabase"
+        ? "Connecté à Supabase"
+        : "Démo locale · pas d’API";
+  }
   if (logoutBtn && !store.authRequired()) logoutBtn.hidden = true;
-  logoutBtn.addEventListener("click", async () => {
-    await store.logout();
-    window.location.href = "./index.html";
-  });
+  if (resetBtn && store.authRequired() && store.backend === "supabase") resetBtn.hidden = true;
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", async () => {
+      await store.logout();
+      window.location.href = "./index.html";
+    });
+  }
+  if (resetBtn) {
+    resetBtn.addEventListener("click", async () => {
+      await store.resetDemo();
+    });
+  }
 
   const artisan = store.currentArtisan() || {};
   if (artisan.displayName) {
