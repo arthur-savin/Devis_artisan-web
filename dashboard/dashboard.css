@@ -692,3 +692,76 @@ body.dash {
   .bulk-tools select,
   .bulk-hide { flex: 1; }
 }
+
+/* ---------- Paiements · Payflow ---------- */
+.pf-tag {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--navy);
+  color: var(--gold);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pf-page { display: flex; flex-direction: column; gap: 14px; }
+.pf-page .stats { margin-bottom: 0; }
+.pf-page .panel { min-height: 0; padding: 18px 20px; }
+.pf-page h2 { font-size: 1.05rem; letter-spacing: -0.02em; margin: 0 0 10px; }
+.pf-todo { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(244, 196, 48, 0.18); }
+.pf-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.pf-head h2 { margin: 0; }
+.pf-inv {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.pf-inv:first-child { border-top: 0; }
+.pf-inv-main { min-width: 0; }
+.pf-inv-main strong { display: block; font-size: 0.95rem; }
+.pf-inv-main small { color: var(--muted); font-size: 0.78rem; }
+.pf-inv-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.btn.pf-sm { padding: 7px 11px; font-size: 0.78rem; }
+.pf-icon { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 1rem; padding: 4px 6px; border-radius: 8px; }
+.pf-icon:hover { background: var(--paper); color: var(--navy); }
+.pf-input {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+.pf-input:focus { outline: none; border-color: var(--gold-deep); box-shadow: 0 0 0 3px rgba(244, 196, 48, 0.2); }
+textarea.pf-input { resize: vertical; line-height: 1.5; }
+.pf-page .lab, .pf-modal .lab { display: block; font-size: 0.78rem; font-weight: 700; margin-bottom: 5px; }
+.pf-step { display: grid; grid-template-columns: 28px 1fr 96px; gap: 8px; align-items: center; }
+.pf-step .pf-input { margin-bottom: 8px; }
+.pf-step-n { width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: var(--gold); display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; margin-bottom: 8px; }
+.pf-step-d { display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.85rem; }
+.pf-modal {
+  border: 0;
+  border-radius: var(--radius);
+  padding: 22px;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  margin: auto;
+}
+.pf-modal::backdrop { background: rgba(13, 27, 46, 0.55); }
+.pf-modal h2 { font-size: 1.15rem; margin-bottom: 14px; letter-spacing: -0.02em; }
+.pf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pf-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+@media (max-width: 640px) {
+  .pf-inv { grid-template-columns: 1fr auto; }
+  .pf-inv-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .pf-row { grid-template-columns: 1fr; }
+}

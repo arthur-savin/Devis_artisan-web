@@ -130,6 +130,8 @@
       b.classList.toggle("is-on", b.dataset.setStatus === key);
     });
     prixReel.hidden = key !== "gagne";
+    const billLink = document.getElementById("billLink");
+    if (billLink) billLink.href = "paiements.html?lead=" + encodeURIComponent(new URLSearchParams(location.search).get("id") || "");
   }
 
   function renderPhotos() {

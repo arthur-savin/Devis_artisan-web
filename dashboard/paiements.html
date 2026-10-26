@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Paiements · Payflow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body class="dash">
+  <div class="app">
+    <aside class="side">
+      <div class="side-brand">
+        <div class="bolt" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 10-14h-7l0-6z"/></svg>
+        </div>
+        <div>
+          <strong id="brandName">Espace artisan</strong>
+          <span id="brandMetier">Artisan</span>
+        </div>
+      </div>
+      <nav class="nav-side">
+        <a href="index.html">Demandes</a>
+        <a class="is-on" href="paiements.html">Paiements · Payflow</a>
+        <a href="tarifs.html">Former l’IA</a>
+        <a id="linkPage" href="../page/index.html">Ma page</a>
+        <a id="linkWidget" href="../widget/index.html">Voir le widget</a>
+      </nav>
+      <div class="side-foot">
+        <a href="index.html">← Retour aux demandes</a>
+        <button type="button" id="logout">Se déconnecter</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="top">
+        <h1>Paiements <span class="pf-tag">Payflow</span></h1>
+        <button type="button" class="btn btn-gold" id="newInvoice">+ Nouvelle facture</button>
+      </header>
+      <div class="content pf-page">
+        <p class="ia-intro">Payflow relance vos clients à votre place. Chaque devis gagné devient une facture suivie : rappel avant l’échéance, relances graduées ensuite, et vous encaissez.</p>
+
+        <div class="stats pf-stats">
+          <div class="stat"><b id="sDue">0 €</b><span>À encaisser</span></div>
+          <div class="stat"><b id="sLate">0 €</b><span>En retard</span></div>
+          <div class="stat"><b id="sPaid">0 €</b><span>Encaissé ce mois</span></div>
+        </div>
+
+        <section class="panel pf-todo" id="todoPanel" hidden>
+          <h2>Relances à faire aujourd’hui</h2>
+          <div id="todoList"></div>
+        </section>
+
+        <section class="panel" id="wonPanel" hidden>
+          <h2>Devis gagnés à facturer</h2>
+          <div id="wonList"></div>
+        </section>
+
+        <section class="panel">
+          <div class="pf-head">
+            <h2>Factures</h2>
+            <div class="filters" id="pfFilters">
+              <button type="button" class="filter is-on" data-f="open">En cours</button>
+              <button type="button" class="filter" data-f="late">En retard</button>
+              <button type="button" class="filter" data-f="paid">Payées</button>
+              <button type="button" class="filter" data-f="all">Toutes</button>
+            </div>
+          </div>
+          <div id="invList"></div>
+        </section>
+
+        <div class="ia-cols">
+          <section class="panel">
+            <h2>Scénario de relance</h2>
+            <p class="tarif-help">Jours par rapport à l’échéance (négatif = avant). Le ton monte à chaque étape.</p>
+            <div id="scenario"></div>
+            <button type="button" class="btn btn-ghost" id="saveScenario">Enregistrer le scénario</button>
+            <p class="ok-msg" id="scenarioOk" hidden>Scénario enregistré.</p>
+          </section>
+          <section class="panel">
+            <h2>Coordonnées de paiement</h2>
+            <p class="tarif-help">Ajoutées à chaque relance pour que le client paie tout de suite.</p>
+            <label class="lab" for="pIban">IBAN</label>
+            <input class="pf-input" id="pIban" placeholder="FR76 …" />
+            <label class="lab" for="pLink">Lien de paiement (facultatif)</label>
+            <input class="pf-input" id="pLink" placeholder="https://…" />
+            <label class="lab" for="pDelay">Délai de paiement par défaut (jours)</label>
+            <input class="pf-input" id="pDelay" type="number" min="0" value="30" />
+            <button type="button" class="btn btn-ghost" id="saveSettings">Enregistrer</button>
+            <p class="ok-msg" id="settingsOk" hidden>Coordonnées enregistrées.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <dialog class="pf-modal" id="invModal">
+    <form method="dialog" id="invForm">
+      <h2 id="invTitle">Nouvelle facture</h2>
+      <label class="lab" for="fClient">Client</label>
+      <input class="pf-input" id="fClient" required />
+      <label class="lab" for="fEmail">Email du client</label>
+      <input class="pf-input" id="fEmail" type="email" />
+      <label class="lab" for="fLabel">Objet</label>
+      <input class="pf-input" id="fLabel" />
+      <div class="pf-row">
+        <div><label class="lab" for="fNumber">N° de facture</label><input class="pf-input" id="fNumber" required /></div>
+        <div><label class="lab" for="fAmount">Montant TTC (€)</label><input class="pf-input" id="fAmount" type="number" min="0" step="0.01" required /></div>
+      </div>
+      <div class="pf-row">
+        <div><label class="lab" for="fIssue">Émise le</label><input class="pf-input" id="fIssue" type="date" required /></div>
+        <div><label class="lab" for="fDue">Échéance</label><input class="pf-input" id="fDue" type="date" required /></div>
+      </div>
+      <div class="pf-actions">
+        <button type="button" class="btn btn-ghost" value="cancel" id="invCancel">Annuler</button>
+        <button type="submit" class="btn btn-gold" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="pf-modal" id="remModal">
+    <form method="dialog">
+      <h2 id="remTitle">Relance</h2>
+      <p class="tarif-help" id="remTo"></p>
+      <label class="lab" for="remSubject">Objet</label>
+      <input class="pf-input" id="remSubject" />
+      <label class="lab" for="remBody">Message</label>
+      <textarea class="pf-input" id="remBody" rows="11"></textarea>
+      <div class="pf-actions">
+        <button type="button" class="btn btn-ghost" id="remCancel">Annuler</button>
+        <button type="button" class="btn btn-ghost" id="remCopy">Copier et noter envoyée</button>
+        <button type="button" class="btn btn-gold" id="remSend">Envoyer par email</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../shared/supabase-config.js"></script>
+  <script src="../shared/store.js"></script>
+  <script src="paiements.js"></script>
+</body>
+</html>
